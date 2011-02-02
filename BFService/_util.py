@@ -3,10 +3,9 @@
 import re
 
 from datetime import datetime
-from decimal import Decimal
 
 
-def from_timestamp(s):
+def as_datetime(s):
     s = int(s)
     s, ms = s / 1000, s % 1000
     s = datetime.utcfromtimestamp(s)
@@ -14,10 +13,10 @@ def from_timestamp(s):
     return s
 
 
-def as_decimal(s):
-    """Returns a Decimal from a string
+def as_float(s):
+    """Returns a float from a string
     """
-    return Decimal("0.0" if not s else s)
+    return 0.0 if not s else float(s)
 
 
 def uncompress_market_prices(data):
@@ -39,7 +38,7 @@ def uncompress_market_prices(data):
         m = pop()
         L = re.split(r"(?<!\\),", m["field"])
         removed_runners.append({"selection_name": L[0],
-                                "removed_date": from_timestamp(L[1]),
+                                "removed_date": as_datetime(L[1]),
                                 "adjustment_factor": L[2]})
     market_prices["removedRunners"] = removed_runners
     runners = []
@@ -47,15 +46,15 @@ def uncompress_market_prices(data):
         L = [ m["field"] for m in pop(11) ]
         runners.append({"selectionId": int(L[0]),
                         "sortOrder": int(L[1]),
-                        "totalAmountMatched": as_decimal(L[2]),
-                        "lastPriceMatched": as_decimal(L[3]),
-                        "handicap": as_decimal(L[4]),
-                        "reductionFactor": as_decimal(L[5]),
+                        "totalAmountMatched": as_float(L[2]),
+                        "lastPriceMatched": as_float(L[3]),
+                        "handicap": as_float(L[4]),
+                        "reductionFactor": as_float(L[5]),
                         "vacant": L[6] == "true",
                         "asianLineId": int(L[7]),
-                        "farBSP": as_decimal(L[8]),
-                        "nearBSP": as_decimal(L[9]),
-                        "actualBSP": as_decimal(L[10])})
+                        "farBSP": as_float(L[8]),
+                        "nearBSP": as_float(L[9]),
+                        "actualBSP": as_float(L[10])})
         prices = []
         if peek()["rectype"] == "|":
             while not empty():
@@ -64,8 +63,8 @@ def uncompress_market_prices(data):
                 price = {"price": float(L[0]),
                          "amountAvailable": float(L[1]),
                          "bsp_lay_liability": float(L[3]),
-                         "bsp_backer_stake_volume": as_decimal(L[4])}
-                         "available_to_lay": float(L[2]),
+                         "bsp_backer_stake_volume": as_float(L[4]),
+                         "available_to_lay": float(L[2])}
                 prices.append(price)
                 if not empty() and peek()["rectype"] != "":
                     break
@@ -83,21 +82,22 @@ def uncompress_markets(data):
         rec = re.sub(r"\\:", ":", rec)
         fields = re.split(r"(?<!\\)~", rec)
         fields = [ re.sub(r"\\~", "~", f) for f in fields]
-        mkt = dict(id = int(fields[0]),
+        mkt = dict(marketId = int(fields[0]),
                    name = fields[1],
-                   type = fields[2],
-                   status = fields[3],
-                   date = from_timestamp(fields[4]),
-                   path = fields[5],
-                   hierarchy = fields[6],
-                   delay = fields[7],
-                   exchange_id = int(fields[8]),
-                   country = fields[9],
-                   last_refresh = from_timestamp(fields[10]),
-                   no_runners = int(fields[11]),
-                   no_winners = int(fields[12]),
-                   amount_matched = as_decimal(fields[13]),
-                   is_bsp = fields[14] == "Y",
-                   is_turning_in_play = fields[15] == "Y")
+                   marketType = fields[2],
+                   marketStatus = fields[3],
+                   marketTime = as_datetime(fields[4]),
+                   menuPath = fields[5],
+                   eventHierarchy = [ int(f) for f in fields[6].split("/") if f != ''],
+                   betDelay = int(fields[7]),
+                   exchangeId = int(fields[8]),
+                   countryISO3 = fields[9],
+                   lastRefresh = as_datetime(fields[10]),
+                   numberOfRunners = int(fields[11]),
+                   numberOfWinners = int(fields[12]),
+                   matchedSize = as_float(fields[13]),
+                   bspMarket = fields[14] == "Y",
+                   turningInPlay = fields[15] == "Y")
         markets.append(mkt)
     return markets
+

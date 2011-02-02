@@ -3,10 +3,11 @@
 from nose.tools import *
 from pprint import pprint
 
-from BFService import util
+from BFService import _util
 
-prices = open("test/compressed_prices").read()
 
-pprint(util.uncompress_market_prices(prices))
+def test_uncompress_market_prices():
+    prices = open("tests/data/compressed_prices").read()
+    pprint(_util.uncompress_market_prices(prices))
 
 

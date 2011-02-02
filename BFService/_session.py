@@ -1,16 +1,18 @@
 #!/usr/bin/env python
 
-from datetime import datetime
-from itertools import islice
-import re
+import threading
 import logging
 
 logging.basicConfig(level=logging.INFO)
 #logging.getLogger('suds.client').setLevel(logging.DEBUG)
 
+from datetime import datetime
 from suds.client import Client
 
-from _util import as_decimal, uncompress_market_prices, from_timestamp
+from _util import uncompress_market_prices, uncompress_markets
+
+
+__all__ = ("ServiceError", "Session")
 
 
 BFGlobalServiceUrl = "https://api.betfair.com/global/v3/BFGlobalService.wsdl"
@@ -26,33 +28,65 @@ BFExchangeFactory = BFExchangeServiceClient.factory
 # Error enumerations
 APIErrorEnum = BFGlobalFactory.create("ns1:APIErrorEnum")
 GetEventsErrorEnum = BFGlobalFactory.create("ns1:GetEventsErrorEnum")
+ConvertCurrencyErrorEnum = BFGlobalFactory.create("ns1:ConvertCurrencyErrorEnum")
 GetBetErrorEnum = BFExchangeFactory.create("ns1:GetBetErrorEnum")
 GetAllMarketsErrorEnum = BFExchangeFactory.create("ns1:GetAllMarketsErrorEnum")
 GetCompleteMarketPricesErrorEnum = BFExchangeFactory.create("ns1:GetCompleteMarketPricesErrorEnum")
-ConvertCurrencyErrorEnum = BFExchangeFactory.create("ns1:ConvertCurrencyErrorEnum")
 
 
-class BFServiceError(Exception):
+class ServiceError(Exception):
     pass
+
+
+class HeartBeat(threading.Thread):
+
+    def __init__(self, keepalive_func, interval = 19):
+        super(HeartBeat, self).__init__()
+        self.daemon = True
+        self.event = threading.Event()
+        self.interval = interval
+        self.keepalive_func = keepalive_func
+        self.tstamp = None
+
+    def run(self):
+        self.tstamp = datetime.now()
+        while True:
+            time_out = float(self.interval - self.elapsed_mins())
+            self.event.wait(time_out)
+            if self.event.is_set(): break
+            if self.elapsed_mins() > self.interval:
+                self.keepalive_func()
+                self.reset()
+
+    def elapsed_mins(self):
+        return (datetime.now() - self.tstamp).seconds / 60
+
+    def reset(self):
+        self.tstamp = datetime.now()
+
+    def stop(self):
+        self.event.set()
+        self.join()
 
 
 class Session(object):
 
-    request_header = BFGlobalFactory.create("ns1:APIRequestHeader")
-    request_header.clientStamp = 0
-
-    def __init__(self, username, password, product_id = 82):
+    def __init__(self, username, password, product_id = 82, vendor_id = 0):
         super(Session, self).__init__()
+        self._request_header = BFGlobalFactory.create("ns1:APIRequestHeader")
+        self._request_header.clientStamp = 0
+        self._heartbeat = None
         self.username = username
         self.password = password
         self.product_id = product_id
+        self.vendor_id = 0
 
     def __enter__(self):
         self.login()
         return self
 
     def __exit__(self, type, value, traceback):
-        if self.request_header.sessionToken is not None:
+        if self._request_header.sessionToken is not None:
             self.logout();
 
     def login(self):
@@ -60,21 +94,30 @@ class Session(object):
         req.username = self.username
         req.password = self.password
         req.productId = self.product_id
+        req.vendorSoftwareId = self.vendor_id
         req.ipAddress = 0
         req.locationId = 0
-        req.vendorSoftwareId = 0
         rsp = self._soapcall(BFGlobalService.login, req)
         if rsp.errorCode != APIErrorEnum.OK:
-            raise BFServiceError(rsp.errorCode)
+            raise ServiceError(rsp.errorCode)
+        self._heartbeat = HeartBeat(self.keep_alive)
+        self._heartbeat.start()
 
     def logout(self):
-        BFGlobalService.logout(self.request_header)
+        if self._heartbeat:
+            self._heartbeat.stop()
+        self._heartbeat = None
+        BFGlobalService.logout(self._request_header)
+        self._request_header.sessionToken = None
+
+    def is_active(self):
+        return self._heartbeat is not None
 
     def keep_alive(self):
         req = BFGlobalFactory.create("ns1:KeepAliveRequest")
         rsp = self._soapcall(BFGlobalService.keepAlive, req)
         if rsp.header.errorCode != APIErrorEnum.OK:
-            raise BFServiceError(rsp.header.errorCode)
+            raise ServiceError(rsp.header.errorCode)
 
     def get_events(self, active=True, locale=None):
         req = BFGlobalFactory.create("ns1:GetEventTypesReq")
@@ -83,17 +126,17 @@ class Session(object):
                 if active else BFGlobalService.getAllEventTypes
         rsp = self._soapcall(func, req)
         if rsp.errorCode == GetEventsErrorEnum.API_ERROR:
-            raise BFServiceError(rsp.header.errorCode)
+            raise ServiceError(rsp.header.errorCode)
         if rsp.errorCode not in (GetEventsErrorEnum.OK,
                                  GetEventsErrorEnum.NO_RESULTS):
-            raise BFServiceError(rsp.errorCode)
+            raise ServiceError(rsp.errorCode)
         return rsp.eventTypeItems
 
     def get_currencies(self):
         req = BFGlobalFactory.create("ns1:GetCurrenciesV2Req")
         rsp = self._soapcall(BFGlobalService.getAllCurrenciesV2, req)
         if rsp.header.errorCode != self.APIError.OK:
-            raise BFServiceError(rsp.header.errorCode)
+            raise ServiceError(rsp.header.errorCode)
         return rsp.currencyItems
 
     def convert_currency(self, amount, from_currency, to_currency):
@@ -103,9 +146,9 @@ class Session(object):
         req.toCurrency = to_currency
         rsp = self._soapcall(BFGlobalService.convertCurrency, req)
         if rsp.errorCode == ConvertCurrencyErrorEnum.API_ERROR:
-            raise BFServiceError(rsp.header.errorCode)
+            raise ServiceError(rsp.header.errorCode)
         elif rsp.errorCode != ConvertCurrencyErrorEnum.OK:
-            raise BFServiceError(rsp.errorCode)
+            raise ServiceError(rsp.errorCode)
         return rsp.convertedAmount
 
     def get_bet(self, id, lite=False):
@@ -116,7 +159,7 @@ class Session(object):
                 if lite else BFExchangeService.getBet
         rsp = self._soapcall(func, req)
         if rsp.errorCode != GetBetErrorEnum.OK:
-            raise BFServiceError(rsp.header.errorCode)
+            raise ServiceError(rsp.header.errorCode)
         return rsp.betlite if lite else rsp.bet
 
     def get_in_play_markets(self, locale=None):
@@ -124,9 +167,9 @@ class Session(object):
         if locale: req.locale = locale
         rsp = self._soapcall(BFExchangeService.getInPlayMarkets, req)
         if rsp.errorCode == GetInPlayMarketsErrorEnum.API_ERROR:
-            raise BFServiceError(rsp.header.errorCode)
+            raise ServiceError(rsp.header.errorCode)
         if rsp.errorCode != GetInPlayMarketsErrorEnum.OK:
-            raise BFServiceError(rsp.errorCode)
+            raise ServiceError(rsp.errorCode)
         return uncompress_markets(rsp.marketData)
 
     def get_markets(self, event_type_ids=None, countries=None, date_range=None):
@@ -146,21 +189,22 @@ class Session(object):
                 pass
         rsp = self._soapcall(BFExchangeService.getAllMarkets, req)
         if rsp.errorCode == GetAllMarketsErrorEnum.API_ERROR:
-            raise BFServiceError(rsp.header.errorCode)
+            raise ServiceError(rsp.header.errorCode)
         if rsp.errorCode != GetAllMarketsErrorEnum.OK:
-            raise BFServiceError(rsp.errorCode)
+            raise ServiceError(rsp.errorCode)
         markets = uncompress_markets(rsp.marketData)
         return markets
 
-    def get_complete_market_prices(self, market_id, currency):
+    def get_complete_market_prices(self, market_id, currency=None):
         req = BFExchangeFactory.create("ns1:GetCompleteMarketPricesCompressedReq")
         req.marketId = market_id
-        req.currencyCode = currency
+        if currency:
+            req.currencyCode = currency
         rsp = self._soapcall(BFExchangeService.getCompleteMarketPricesCompressed, req)
         if rsp.errorCode == GetCompleteMarketPricesErrorEnum.API_ERROR:
-            raise BFServiceError(rsp.header.errorCode)
+            raise ServiceError(rsp.header.errorCode)
         if rsp.errorCode != GetCompleteMarketPricesErrorEnum.OK:
-            raise BFServiceError(rsp.errorCode)
+            raise ServiceError(rsp.errorCode)
         return uncompress_market_prices(rsp.completeMarketPrices)
 
     def get_detail_available_mkt_depth(self, market_id, selection_id, currency,
@@ -175,19 +219,21 @@ class Session(object):
             req.locale = locale
         rsp = self._soapcall(BFExchangeService.getDetailedAvailableMktDepth, req)
         if rsp.errorCode == GetDetailedAvailMktDepthErrorEnum.API_ERROR:
-            raise BFServiceError(rsp.header.errorCode)
+            raise ServiceError(rsp.header.errorCode)
         if rsp.errorCode != GetDetailAvailMktDepthErrorEnum.OK:
-            raise BFServiceError(rsp.errorCode)
+            raise ServiceError(rsp.errorCode)
         return rsp.priceItems
 
     def _soapcall(self, soapfunc, req):
         if hasattr(req, 'header'):
-            req.header = self.request_header
+            req.header = self._request_header
+        if self._heartbeat:
+            self._heartbeat.reset()
         rsp = soapfunc(req)
         try:
             token = rsp.header.sessionToken
             if token:
-                self.request_header.sessionToken = token
+                self._request_header.sessionToken = token
         except AttributeError:
             pass
         return rsp
