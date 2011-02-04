@@ -6,7 +6,9 @@ from datetime import datetime
 
 
 def as_datetime(s):
-    s = int(s)
+    """Returns a datetime object from a string
+    """
+    s = int(s) if s else 0
     s, ms = s / 1000, s % 1000
     s = datetime.utcfromtimestamp(s)
     s = s.replace(microsecond=ms * 1000)
@@ -59,12 +61,11 @@ def uncompress_market_prices(data):
         if peek()["rectype"] == "|":
             while not empty():
                 L = [ m["field"] for m in pop(5) ]
-                available = float(L[2]) # To back
-                price = {"price": float(L[0]),
-                         "amountAvailable": float(L[1]),
-                         "bsp_lay_liability": float(L[3]),
-                         "bsp_backer_stake_volume": as_float(L[4]),
-                         "available_to_lay": float(L[2])}
+                price = {"odds": float(L[0]),
+                         "totalAvailableBackAmount": float(L[1]),
+                         "totalAvailableLayAmount": float(L[2]),
+                         "totalBspLayAmount": float(L[3]),
+                         "totalBspBackAmount": as_float(L[4])}
                 prices.append(price)
                 if not empty() and peek()["rectype"] != "":
                     break
