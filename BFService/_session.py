@@ -6,6 +6,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 #logging.getLogger('suds.client').setLevel(logging.DEBUG)
 
+from os import path
 from datetime import datetime
 from suds.client import Client
 
@@ -15,11 +16,13 @@ from _util import uncompress_market_prices, uncompress_markets
 __all__ = ("ServiceError", "Session")
 
 
+BFGlobalServiceUrl = "file://" + path.abspath(path.join(path.dirname(__file__), "wsdl/BFGlobalService.wsdl"))
 BFGlobalServiceUrl = "https://api.betfair.com/global/v3/BFGlobalService.wsdl"
 BFGlobalServiceClient = Client(BFGlobalServiceUrl)
 BFGlobalService = BFGlobalServiceClient.service
 BFGlobalFactory = BFGlobalServiceClient.factory
 
+BFExchangeServiceUrl = "file://" + path.abspath(path.join(path.dirname(__file__), "wsdl/BFExchangeService.wsdl"))
 BFExchangeServiceUrl = "https://api.betfair.com/exchange/v5/BFExchangeService.wsdl"
 BFExchangeServiceClient = Client(BFExchangeServiceUrl)
 BFExchangeService = BFExchangeServiceClient.service
@@ -205,7 +208,7 @@ class Session(object):
             raise ServiceError(rsp.header.errorCode)
         if rsp.errorCode != GetCompleteMarketPricesErrorEnum.OK:
             raise ServiceError(rsp.errorCode)
-        return uncompress_market_prices(rsp.completeMarketPrices)
+        return uncompress_complete_market_prices(rsp.completeMarketPrices)
 
     def get_detail_available_mkt_depth(self, market_id, selection_id, currency,
                                        asian_line_id=None, locale=None):

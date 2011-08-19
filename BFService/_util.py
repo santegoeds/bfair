@@ -2,6 +2,7 @@
 
 import re
 
+from itertools import izip
 from datetime import datetime
 
 
@@ -18,10 +19,70 @@ def as_datetime(s):
 def as_float(s):
     """Returns a float from a string
     """
-    return 0.0 if not s else float(s)
+    if not s: return 0.0
+    return float(s)
+
+
+def as_int(s):
+    if not s: return 0
+    return int(s)
+
+
+def as_bool(s):
+    if not s: return False
+    return s in ["true", "Y"]
+
+
+RE_FIELDS = re.compile(r"(?<!\\)~")
+RE_REMOVED_RUNNERS = re.compile(r"(?<!\\);")
+RE_REMOVED_RUNNER_FIELDS = re.compile(r"(?<!\\),")
+RE_RUNNERS = re.compile(r"(?<!\\):")
+RE_RUNNER = re.compile(r"(?<!\\)|")
+
+
+def uncompress_one_removed_runner(data):
+    return RE_REMOVED_RUNNER_FIELDS.split(data)
+
+
+def uncompress_removed_runners(data):
+    return [ uncompress_one_removed_runner(r)
+             for r in RE_REMOVED_RUNNERS.split(data) ]
+
+
+def uncompress_one_runner(data):
+    T = ("selectionId", "sortOrder", "totalAmountBacked", "lastPriceMatched",
+         "handicap", "reductionFactor", "vacant", "farBSP", "nearBSP",
+         "actualBSP", "backPrices", "layPrices")
+    D = dict(izip(T, RE_RUNNER.split(data)))
+    return D
+
+
+def uncompress_runners(data):
+    return [ uncompress_one_runner(r) for r in RE_RUNNERS.split(data) ]
 
 
 def uncompress_market_prices(data):
+    decoders = {
+        "marketId": as_int,
+        "currency": None,
+        "marketStatus": None,
+        "delay": as_int,
+        "numberOfWinners": as_int,
+        "marketInfo": None,
+        "discountAllowed": as_bool,
+        "marketBaseRate" as_float,
+        "lastRefresh" None,
+        "removedRunners": uncompress_removed_runners,
+        "bspMarket": None,
+        "runnerPrices": None,
+    }
+    D = dict( (name, decode(field) if decode else field)
+              for (name, decode), field in zip(decoders.iteritems(),
+                                               RE_FIELDS.split(data)))
+    return D
+
+
+def _xxx_uncompress_market_prices(data):
     regex = r"(?P<rectype>[|:;]?)(?P<field>(?:[^~|:;]|(?<=\\)[~|:;])*)~"
     tokens = [ m.groupdict() for m in re.finditer(regex, data) ]
     def pop(sz=1):
