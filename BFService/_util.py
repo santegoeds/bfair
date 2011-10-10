@@ -18,6 +18,8 @@ import re
 
 from datetime import datetime
 
+from _types import Market
+
 
 def as_datetime(s):
     """Returns a datetime object from a string
@@ -28,11 +30,16 @@ def as_datetime(s):
     s = s.replace(microsecond=ms * 1000)
     return s
 
-
 def as_float(s):
     """Returns a float from a string
     """
     return 0.0 if not s else float(s)
+
+def as_int(s):
+    return 0 if not s else int(s)
+
+def as_bool(s):
+    return s.lower() in ["y", "true", "1"]
 
 
 def uncompress_market_prices(data):
@@ -97,22 +104,24 @@ def uncompress_markets(data):
         rec = re.sub(r"\\:", ":", rec)
         fields = re.split(r"(?<!\\)~", rec)
         fields = [ re.sub(r"\\~", "~", f) for f in fields]
-        mkt = dict(marketId = int(fields[0]),
-                   name = fields[1],
-                   marketType = fields[2],
-                   marketStatus = fields[3],
-                   marketTime = as_datetime(fields[4]),
-                   menuPath = fields[5],
-                   eventHierarchy = [ int(f) for f in fields[6].split("/") if f != ''],
-                   betDelay = int(fields[7]),
-                   exchangeId = int(fields[8]),
-                   countryISO3 = fields[9],
-                   lastRefresh = as_datetime(fields[10]),
-                   numberOfRunners = int(fields[11]),
-                   numberOfWinners = int(fields[12]),
-                   matchedSize = as_float(fields[13]),
-                   bspMarket = fields[14] == "Y",
-                   turningInPlay = fields[15] == "Y")
+        mkt = Market(
+            marketId = as_int(fields[0]),
+            name = fields[1],
+            marketType = fields[2],
+            marketStatus = fields[3],
+            marketTime = as_datetime(fields[4]),
+            menuPath = fields[5],
+            eventHierarchy = [ as_int(f) for f in fields[6].split("/") if f != ""],
+            betDelay = as_int(fields[7]),
+            exchangeId = as_int(fields[8]),
+            countryISO3 = fields[9],
+            lastRefresh = as_datetime(fields[10]),
+            numberOfRunners = as_int(fields[11]),
+            numberOfWinners = as_int(fields[12]),
+            matchedSize = as_float(fields[13]),
+            bspMarket = as_bool(fields[14]),
+            turningInPlay = as_bool(fields[15])
+        )
         markets.append(mkt)
     return markets
 

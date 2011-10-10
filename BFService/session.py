@@ -113,7 +113,10 @@ class Session(object):
         req.locationId = 0
         rsp = self._soapcall(BFGlobalService.login, req)
         if rsp.errorCode != APIErrorEnum.OK:
-            raise ServiceError(rsp.errorCode)
+            error_code = rsp.errorCode
+            if error_code == APIErrorEnum.API_ERROR:
+                error_code = rsp.header.errorCode
+            raise ServiceError(error_code)
         self._heartbeat = HeartBeat(self.keep_alive)
         self._heartbeat.start()
 
@@ -134,6 +137,9 @@ class Session(object):
             raise ServiceError(rsp.header.errorCode)
 
     def get_events(self, active=True, locale=None):
+        """
+        Returns a list of events that are available to bet on.
+        """
         req = BFGlobalFactory.create("ns1:GetEventTypesReq")
         if locale: req.locale = locale
         func = BFGlobalService.getActiveEventTypes \
@@ -177,7 +183,7 @@ class Session(object):
         return rsp.betlite if lite else rsp.bet
 
     def get_in_play_markets(self, locale=None):
-        req = BFExchangeService.create("ns1:GetInPlayMarkets")
+        req = BFExchangeFactory.create("ns1:GetInPlayMarketsReq")
         if locale: req.locale = locale
         rsp = self._soapcall(BFExchangeService.getInPlayMarkets, req)
         if rsp.errorCode == GetInPlayMarketsErrorEnum.API_ERROR:
