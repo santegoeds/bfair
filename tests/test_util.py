@@ -2,11 +2,10 @@
 
 from os import path
 from pprint import pprint
-from nose.tools import *
-
-from nose.tools import *
 
 from BFService import _util
+
+from nose.tools import *
 
 
 def test_uncompress_market_prices():

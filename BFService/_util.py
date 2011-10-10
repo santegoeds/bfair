@@ -16,9 +16,17 @@
 
 import re
 
+from collections import namedtuple
 from itertools import izip
-from datetime import datetime
+from datetime import datetime, time
+from pprint import pprint
 
+def as_time(s):
+    """Returns a time object from a string.
+    """
+    s = s.split(".")
+    hour, mins = [ int(s) for s in s.split(".") ]
+    return time(hour, mins)
 
 def as_datetime(s):
     """Returns a datetime object from a string
@@ -29,124 +37,155 @@ def as_datetime(s):
     s = s.replace(microsecond=ms * 1000)
     return s
 
-
 def as_float(s):
     """Returns a float from a string
     """
     if not s: return 0.0
     return float(s)
 
-
 def as_int(s):
     if not s: return 0
     return int(s)
 
-
 def as_bool(s):
     if not s: return False
-    return s in ["true", "Y"]
+    return s.lower() in ["true", "y", "1"]
+
+def as_string(s):
+    if not s: return ""
+    return s.replace(r"\\", "")
 
 
-RE_FIELDS = re.compile(r"(?<!\\)~")
-RE_REMOVED_RUNNERS = re.compile(r"(?<!\\);")
-RE_REMOVED_RUNNER_FIELDS = re.compile(r"(?<!\\),")
-RE_RUNNERS = re.compile(r"(?<!\\):")
-RE_RUNNER = re.compile(r"(?<!\\)|")
+
+MarketPrices = namedtuple(
+    "MarketPrices", (
+        "marketId",
+        "currency",
+        "marketStatus",
+        "delay",
+        "numberOfWinners",
+        "marketInfo",
+        "discountAllowed",
+        "marketBaseRate",
+        "lastRefresh",
+        "removedRunners",
+        "bspMarket",
+        "runnerPrices",
+    )
+)
+
+RemovedRunner = namedtuple(
+    "RemovedRunner", (
+        "selection_name",
+        "removed_date",
+        "adjustment_factor"
+    )
+)
+
+Runner = namedtuple(
+    "Runner", (
+        "selectionId",
+        "sortOrder",
+        "totalAmountMatched",
+        "lastPriceMatched",
+        "handicap",
+        "reductionFactor",
+        "vacant"
+        "farBSP",
+        "nearBSP",
+        "actualBSP",
+        "bestPricesToBack",
+        "bestPricesToLay",
+    )
+)
+
+MarketPrice = namedtuple(
+    "MarketPrice", (
+        "price",
+        "amountAvailable",
+        "betType",
+        "depth",
+    )
+)
+
+class DecompressOneMarketPrice(object):
+
+    tokenise = lambda self, data: data.split("~")
+    decoders = (
+        as_float,   # price
+        as_float,   # amountAvailable
+        None,       # betType ("B" or "L")
+        as_int,     # depth
+    )
+
+    def __call__(self, data):
+        L = [
+            decode(fld) if decode else fld
+            for decode, fld in izip(self.decoders, self.tokenise(data))
+        ]
+        return MarketPrice(L)
 
 
-def uncompress_one_removed_runner(data):
-    return RE_REMOVED_RUNNER_FIELDS.split(data)
+class DecompressOneRunner(object):
+
+    def __call__(self, data):
+        pprint(data)
+
+class DecompressMarketRunners(object):
+
+    tokenise = lambda self, data: data.split("|")
+    decode = DecompressOneRunner()
+
+    def __call__(self, data):
+        return [ self.decode(fld) for fld in self.tokenise(data) ]
 
 
-def uncompress_removed_runners(data):
-    return [ uncompress_one_removed_runner(r)
-             for r in RE_REMOVED_RUNNERS.split(data) ]
+class DecompressRemovedRunners(object):
+
+    tokenise = re.compile(r"(?<!\\);")
+
+    def __call__(self, data):
+        pass
 
 
-def uncompress_one_runner(data):
-    T = ("selectionId", "sortOrder", "totalAmountBacked", "lastPriceMatched",
-         "handicap", "reductionFactor", "vacant", "farBSP", "nearBSP",
-         "actualBSP", "backPrices", "layPrices")
-    D = dict(izip(T, RE_RUNNER.split(data)))
-    return D
+class DecompressMarketPricesInfo(object):
+
+    tokenise = re.compile(r"(?<!\\)~").split
+    decoders = (
+        as_int,          # marketId
+        None,            # currency
+        None,            # marketStatus
+        as_int,          # delay
+        as_int,          # numberOfWinners
+        as_string,       # marketInfo
+        as_bool,         # discountAllowed
+        None,            # marketBaseRate
+        as_datetime,     # lastRefresh
+        None,            # removedRunners
+        as_bool,         # bspMarket
+    )
+
+    def __call__(self, data):
+        return [
+            decode(field) if decode else field
+            for field, decode in izip(self.tokenise(data), self.decoders)
+        ]
 
 
-def uncompress_runners(data):
-    return [ uncompress_one_runner(r) for r in RE_RUNNERS.split(data) ]
+class DecompressMarketPrices(object):
+
+    tokenize = re.compile(r"(?<!\\):").split
+    decode_info = DecompressMarketPricesInfo()
+    decode_prices = DecompressMarketRunners()
+
+    def __call__(self, data):
+        data = self.tokenize(data)
+        market_prices = self.decode_info(data[0])
+        market_prices.append(self.decode_prices(data[1]))
+        return MarketPrices(market_prices)
 
 
-def uncompress_market_prices(data):
-    decoders = {
-        "marketId": as_int,
-        "currency": None,
-        "marketStatus": None,
-        "delay": as_int,
-        "numberOfWinners": as_int,
-        "marketInfo": None,
-        "discountAllowed": as_bool,
-        "marketBaseRate" as_float,
-        "lastRefresh" None,
-        "removedRunners": uncompress_removed_runners,
-        "bspMarket": None,
-        "runnerPrices": None,
-    }
-    D = dict( (name, decode(field) if decode else field)
-              for (name, decode), field in zip(decoders.iteritems(),
-                                               RE_FIELDS.split(data)))
-    return D
-
-
-def _xxx_uncompress_market_prices(data):
-    regex = r"(?P<rectype>[|:;]?)(?P<field>(?:[^~|:;]|(?<=\\)[~|:;])*)~"
-    tokens = [ m.groupdict() for m in re.finditer(regex, data) ]
-    def pop(sz=1):
-        t = tokens[:sz]
-        del tokens[:sz]
-        return t
-    def peek():
-        return tokens[0]
-    def empty():
-        return not bool(tokens)
-    market_prices = {}
-    for k, m in zip(("marketId", "delay"), pop(2)):
-        market_prices[k] = int(m["field"])
-    removed_runners = []
-    while not empty() and peek()["rectype"] == ';':
-        m = pop()
-        L = re.split(r"(?<!\\),", m["field"])
-        removed_runners.append({"selection_name": L[0],
-                                "removed_date": as_datetime(L[1]),
-                                "adjustment_factor": L[2]})
-    market_prices["removedRunners"] = removed_runners
-    runners = []
-    while not empty() and peek()["rectype"] == ':':
-        L = [ m["field"] for m in pop(11) ]
-        runners.append({"selectionId": int(L[0]),
-                        "sortOrder": int(L[1]),
-                        "totalAmountMatched": as_float(L[2]),
-                        "lastPriceMatched": as_float(L[3]),
-                        "handicap": as_float(L[4]),
-                        "reductionFactor": as_float(L[5]),
-                        "vacant": L[6] == "true",
-                        "asianLineId": int(L[7]),
-                        "farBSP": as_float(L[8]),
-                        "nearBSP": as_float(L[9]),
-                        "actualBSP": as_float(L[10])})
-        prices = []
-        if peek()["rectype"] == "|":
-            while not empty():
-                L = [ m["field"] for m in pop(5) ]
-                price = {"odds": float(L[0]),
-                         "totalAvailableBackAmount": float(L[1]),
-                         "totalAvailableLayAmount": float(L[2]),
-                         "totalBspLayAmount": float(L[3]),
-                         "totalBspBackAmount": as_float(L[4])}
-                prices.append(price)
-                if not empty() and peek()["rectype"] != "":
-                    break
-        runners[-1]["prices"] = prices
-    market_prices["runners"] = runners
-    return market_prices
+uncompress_market_prices = DecompressMarketPrices()
 
 
 def uncompress_markets(data):
