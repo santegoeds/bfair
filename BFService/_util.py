@@ -21,12 +21,8 @@ from itertools import izip
 from datetime import datetime, time
 from pprint import pprint
 
-def as_time(s):
-    """Returns a time object from a string.
-    """
-    s = s.split(".")
-    hour, mins = [ int(s) for s in s.split(".") ]
-    return time(hour, mins)
+from _types import Market
+
 
 def as_datetime(s):
     """Returns a datetime object from a string
@@ -188,31 +184,43 @@ class DecompressMarketPrices(object):
 uncompress_market_prices = DecompressMarketPrices()
 
 
-def uncompress_markets(data):
-    markets = []
-    # Split data by colon, except when escaped.
-    for rec in re.split(r"(?<!\\):", data):
-        if not rec: continue
-        # Unescape colons.
-        rec = re.sub(r"\\:", ":", rec)
-        fields = re.split(r"(?<!\\)~", rec)
-        fields = [ re.sub(r"\\~", "~", f) for f in fields]
-        mkt = dict(marketId = int(fields[0]),
-                   name = fields[1],
-                   marketType = fields[2],
-                   marketStatus = fields[3],
-                   marketTime = as_datetime(fields[4]),
-                   menuPath = fields[5],
-                   eventHierarchy = [ int(f) for f in fields[6].split("/") if f != ''],
-                   betDelay = int(fields[7]),
-                   exchangeId = int(fields[8]),
-                   countryISO3 = fields[9],
-                   lastRefresh = as_datetime(fields[10]),
-                   numberOfRunners = int(fields[11]),
-                   numberOfWinners = int(fields[12]),
-                   matchedSize = as_float(fields[13]),
-                   bspMarket = fields[14] == "Y",
-                   turningInPlay = fields[15] == "Y")
-        markets.append(mkt)
-    return markets
+class DecompressOneMarket(object):
+
+    #tokenise = re.compile(r"(?<!\\)~").split
+    tokenise = lambda self,  s: s.split("~")
+    decoders = (
+        as_int,      # marketId
+        None,        # name
+        None,        # marketType
+        None,        # marketStatus
+        as_datetime, # marketTime
+        None,        # menuPath
+        lambda s: [as_int(f) for f in s.split("/")], # eventHierarchy
+        as_int,      # betDelay
+        as_int,      # exchangeId
+        None,        # countryISO3
+        as_datetime, # lastRefresh
+        as_int,      # numberOfRunners
+        as_int,      # numberOfWinners
+        as_float,    # matchedSize
+        as_bool,     # bspMarket
+        as_bool,     # turningInPlay
+    )
+    
+    def __call__(self, data):
+        L = [decode(f) if decode else f
+             for f, decode in izip(self.tokenise(data), self.decoders)]
+        return Market(*L)
+
+
+class DecompressMarkets(object):
+
+    tokenise = re.compile(r"(?<!\\):").split
+    decode = DecompressOneMarket()
+
+    def __call__(self, data):
+        return [self.decode(f) for f in DecompressMarkets.tokenise(data) if f]
+
+
+uncompress_markets = DecompressMarkets()
 
