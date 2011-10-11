@@ -21,3 +21,22 @@ Market = namedtuple(
         "turningInPlay",
     )
 )
+
+CurrencyV2 = namedtuple(
+    "CurrencyV2", (
+        "currencyCode",
+        "rateGBP",
+        "minimumStake",
+        "minimumStakeRange",
+        "minimumBSPLayLiability",
+    )
+)
+
+EventType = namedtuple(
+    "EventType", (
+        "id",
+        "name",
+        "nextMarketId",
+        "exchangeId",
+    )
+)

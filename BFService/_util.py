@@ -21,7 +21,7 @@ from itertools import izip
 from datetime import datetime, time
 from pprint import pprint
 
-from _types import Market
+from _types import Market, CurrencyV2
 
 
 def as_datetime(s):
@@ -187,7 +187,7 @@ uncompress_market_prices = DecompressMarketPrices()
 class DecompressOneMarket(object):
 
     #tokenise = re.compile(r"(?<!\\)~").split
-    tokenise = lambda self,  s: s.split("~")
+    tokenise = staticmethod(lambda s: s.split("~"))
     decoders = (
         as_int,      # marketId
         None,        # name

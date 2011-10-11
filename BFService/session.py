@@ -24,6 +24,7 @@ from os import path
 from datetime import datetime
 from suds.client import Client
 
+from _types import CurrencyV2, EventType
 from _util import uncompress_market_prices, uncompress_markets
 
 
@@ -49,6 +50,7 @@ ConvertCurrencyErrorEnum = BFGlobalFactory.create("ns1:ConvertCurrencyErrorEnum"
 GetBetErrorEnum = BFExchangeFactory.create("ns1:GetBetErrorEnum")
 GetAllMarketsErrorEnum = BFExchangeFactory.create("ns1:GetAllMarketsErrorEnum")
 GetCompleteMarketPricesErrorEnum = BFExchangeFactory.create("ns1:GetCompleteMarketPricesErrorEnum")
+GetInPlayMarketsErrorEnum = BFExchangeFactory.create("ns1:GetInPlayMarketsErrorEnum")
 
 
 class ServiceError(Exception):
@@ -153,14 +155,14 @@ class Session(object):
         if rsp.errorCode not in (GetEventsErrorEnum.OK,
                                  GetEventsErrorEnum.NO_RESULTS):
             raise ServiceError(rsp.errorCode)
-        return rsp.eventTypeItems
+        return [EventType(*[n[1] for n in e]) for e in rsp.eventTypeItems[0]]
 
     def get_currencies(self):
         req = BFGlobalFactory.create("ns1:GetCurrenciesV2Req")
         rsp = self._soapcall(BFGlobalService.getAllCurrenciesV2, req)
-        if rsp.header.errorCode != self.APIError.OK:
+        if rsp.header.errorCode != APIErrorEnum.OK:
             raise ServiceError(rsp.header.errorCode)
-        return rsp.currencyItems
+        return [CurrencyV2(*c) for c in rsp.currencyItems]
 
     def convert_currency(self, amount, from_currency, to_currency):
         req = BFGlobalFactory.create("ns1:ConvertCurrencyReq")
