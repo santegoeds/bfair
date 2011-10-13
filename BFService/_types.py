@@ -22,6 +22,13 @@ Market = namedtuple(
     )
 )
 
+Currency = namedtuple(
+    "Currency", (
+        "currencyCode",
+        "rateGBP",
+    )
+)
+
 CurrencyV2 = namedtuple(
     "CurrencyV2", (
         "currencyCode",

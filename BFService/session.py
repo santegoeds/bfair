@@ -143,7 +143,11 @@ class Session(object):
 
     def get_events(self, active=True, locale=None):
         """
-        Returns a list of events that are available to bet on.
+        Returns a list of all categories of sporting events.
+
+        active : `bool`
+            If `True` then only events that have at least one
+            market available to bet on are returned.
         """
         req = BFGlobalFactory.create("ns1:GetEventTypesReq")
         if locale: req.locale = locale
@@ -157,12 +161,19 @@ class Session(object):
             raise ServiceError(rsp.errorCode)
         return [EventType(*[n[1] for n in e]) for e in rsp.eventTypeItems[0]]
 
-    def get_currencies(self):
-        req = BFGlobalFactory.create("ns1:GetCurrenciesV2Req")
-        rsp = self._soapcall(BFGlobalService.getAllCurrenciesV2, req)
+    def get_currencies(self, v2=True):
+        if v2:
+            req = BFGlobalFactory.create("ns1:GetCurrenciesV2Req")
+            srv = BFGlobalService.getAllCurrenciesV2
+            CurrencyType = CurrencyV2
+        else:
+            req = BFGlobalFactory.create("ns1:GetCurrenciesReq")
+            srv = BFGlobalService.getAllCurrencies
+            CurrencyType = Currency
+        rsp = self._soapcall(srv, req)
         if rsp.header.errorCode != APIErrorEnum.OK:
             raise ServiceError(rsp.header.errorCode)
-        return [CurrencyV2(*c) for c in rsp.currencyItems]
+        return [CurrencyType(*c) for c in rsp.currencyItems[0]]
 
     def convert_currency(self, amount, from_currency, to_currency):
         req = BFGlobalFactory.create("ns1:ConvertCurrencyReq")
@@ -232,8 +243,8 @@ class Session(object):
             raise ServiceError(rsp.errorCode)
         return uncompress_complete_market_prices(rsp.completeMarketPrices)
 
-    def get_detail_available_mkt_depth(self, market_id, selection_id, currency,
-                                       asian_line_id=None, locale=None):
+    def get_market_depth(self, market_id, selection_id, currency,
+                         asian_line_id=None, locale=None):
         req = BFExchangeFactory.create("ns1:GetDetailedAvailMktDepthReq")
         req.marketId = market_id
         req.selectionId = selection_id
