@@ -21,7 +21,7 @@ from itertools import izip
 from datetime import datetime, time
 from pprint import pprint
 
-from _types import Market, CurrencyV2
+from ._types import *
 
 
 def as_datetime(s):
@@ -53,58 +53,7 @@ def as_string(s):
 
 
 
-MarketPrices = namedtuple(
-    "MarketPrices", (
-        "marketId",
-        "currency",
-        "marketStatus",
-        "delay",
-        "numberOfWinners",
-        "marketInfo",
-        "discountAllowed",
-        "marketBaseRate",
-        "lastRefresh",
-        "removedRunners",
-        "bspMarket",
-        "runnerPrices",
-    )
-)
-
-RemovedRunner = namedtuple(
-    "RemovedRunner", (
-        "selection_name",
-        "removed_date",
-        "adjustment_factor"
-    )
-)
-
-Runner = namedtuple(
-    "Runner", (
-        "selectionId",
-        "sortOrder",
-        "totalAmountMatched",
-        "lastPriceMatched",
-        "handicap",
-        "reductionFactor",
-        "vacant"
-        "farBSP",
-        "nearBSP",
-        "actualBSP",
-        "bestPricesToBack",
-        "bestPricesToLay",
-    )
-)
-
-MarketPrice = namedtuple(
-    "MarketPrice", (
-        "price",
-        "amountAvailable",
-        "betType",
-        "depth",
-    )
-)
-
-class DecompressOneMarketPrice(object):
+class DecompressPrice(object):
 
     tokenise = lambda self, data: data.split("~")
     decoders = (
@@ -119,66 +68,93 @@ class DecompressOneMarketPrice(object):
             decode(fld) if decode else fld
             for decode, fld in izip(self.decoders, self.tokenise(data))
         ]
-        return MarketPrice(L)
+        return Price(*L)
 
 
-class DecompressOneRunner(object):
+class DecompressRunnerPrice(object):
 
-    def __call__(self, data):
-        pprint(data)
+    tokenise = staticmethod(lambda data: data.split("~"))
+    decoders = (
+        as_int,   # selectionId
+        as_int,   # sortOrder
+        as_float, # totalAmountMatched
+        as_float, # lastPriceMatched
+        as_float, # handicap
+        as_float, # reductionFactor
+        as_bool,  # vacant
+        as_float, # farBSP
+        as_float, # nearBSP
+        as_float, # actualBSP
+    )
 
-class DecompressMarketRunners(object):
+    def __call__(self, data, lay_prices, back_prices):
+        data = self.tokenise(data)
+        data = [decode(fld) for fld, decode in izip(data, self.decoders)]
+        # Extend with asianLineId, which is not available from compressed
+        # market prices.
+        data += [ lay_prices, back_prices, None ]
+        data = RunnerPrice(*data)
+        return data
+
+
+class DecompressRunners(object):
 
     tokenise = lambda self, data: data.split("|")
-    decode = DecompressOneRunner()
+    decode_runner_price = DecompressRunnerPrice()
+    decode_price = DecompressPrice()
 
     def __call__(self, data):
-        return [ self.decode(fld) for fld in self.tokenise(data) ]
+        data = self.tokenise(data)
+        prices = [ self.decode_price(fld) for fld in data[1:] if fld ]
+        back_prices = [ p for p in prices if p.betType == "B" ]
+        lay_prices = [ p for p in prices if p.betType == "L" ]
+        rp = self.decode_runner_price(data[0], lay_prices, back_prices)
+        return rp
 
 
 class DecompressRemovedRunners(object):
 
-    tokenise = re.compile(r"(?<!\\);")
+    tokenise = re.compile(r"(?<!\\);").split
 
     def __call__(self, data):
-        pass
+        return self.tokenise(data)
 
 
 class DecompressMarketPricesInfo(object):
 
     tokenise = re.compile(r"(?<!\\)~").split
     decoders = (
-        as_int,          # marketId
-        None,            # currency
-        None,            # marketStatus
-        as_int,          # delay
-        as_int,          # numberOfWinners
-        as_string,       # marketInfo
-        as_bool,         # discountAllowed
-        None,            # marketBaseRate
-        as_datetime,     # lastRefresh
-        None,            # removedRunners
-        as_bool,         # bspMarket
+        as_int,      # marketId
+        None,        # currency
+        None,        # marketStatus
+        as_int,      # delay
+        as_int,      # numberOfWinners
+        as_string,   # marketInfo
+        as_bool,     # discountAllowed
+        as_float,    # marketBaseRate
+        as_datetime, # lastRefresh
+        None,        # removedRunners
+        as_bool,     # bspMarket
     )
 
     def __call__(self, data):
-        return [
-            decode(field) if decode else field
-            for field, decode in izip(self.tokenise(data), self.decoders)
-        ]
+        data = self.tokenise(data)
+        data = [decode(fld) if decode else fld 
+                for fld, decode in izip(data, self.decoders)]
+        return data
 
 
 class DecompressMarketPrices(object):
 
     tokenize = re.compile(r"(?<!\\):").split
     decode_info = DecompressMarketPricesInfo()
-    decode_prices = DecompressMarketRunners()
+    decode_prices = DecompressRunners()
 
     def __call__(self, data):
         data = self.tokenize(data)
-        market_prices = self.decode_info(data[0])
-        market_prices.append(self.decode_prices(data[1]))
-        return MarketPrices(market_prices)
+        mp = self.decode_info(data[0])
+        mp.append([ self.decode_prices(fld) for fld in data[1:] ])
+        return MarketPrices(*mp)
 
 
 uncompress_market_prices = DecompressMarketPrices()

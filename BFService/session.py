@@ -51,7 +51,7 @@ GetBetErrorEnum = BFExchangeFactory.create("ns1:GetBetErrorEnum")
 GetAllMarketsErrorEnum = BFExchangeFactory.create("ns1:GetAllMarketsErrorEnum")
 GetCompleteMarketPricesErrorEnum = BFExchangeFactory.create("ns1:GetCompleteMarketPricesErrorEnum")
 GetInPlayMarketsErrorEnum = BFExchangeFactory.create("ns1:GetInPlayMarketsErrorEnum")
-
+GetMarketPricesErrorEnum = BFExchangeFactory.create("ns1:GetMarketPricesErrorEnum")
 
 class ServiceError(Exception):
     pass
@@ -198,7 +198,7 @@ class Session(object):
             raise ServiceError(rsp.header.errorCode)
         return rsp.betlite if lite else rsp.bet
 
-    def get_in_play_markets(self, locale=None):
+    def get_inplay_markets(self, locale=None):
         req = BFExchangeFactory.create("ns1:GetInPlayMarketsReq")
         if locale: req.locale = locale
         rsp = self._soapcall(BFExchangeService.getInPlayMarkets, req)
@@ -208,9 +208,9 @@ class Session(object):
             raise ServiceError(rsp.errorCode)
         return uncompress_markets(rsp.marketData)
 
-    def get_markets(self, event_type_ids=None, countries=None, date_range=None):
+    def get_markets(self, event_ids=None, countries=None, date_range=None):
         req = BFExchangeFactory.create("ns1:GetAllMarketsReq")
-        if event_type_ids:
+        if event_ids:
             req.eventTypeIds = event_ids
         if countries:
             req.countries = countries
@@ -231,7 +231,20 @@ class Session(object):
         markets = uncompress_markets(rsp.marketData)
         return markets
 
-    def get_complete_market_prices(self, market_id, currency=None):
+    def get_market_prices(self, market_id, currency=None):
+        req = BFExchangeFactory.create("ns1:GetMarketPricesCompressedReq")
+        req.marketId = market_id
+        if currency:
+            req.currencyCode = currency
+        rsp = self._soapcall(BFExchangeService.getMarketPricesCompressed, req)
+        if rsp.errorCode == GetMarketPricesErrorEnum.API_ERROR:
+            raise ServiceError(rsp.header.errorCode)
+        if rsp.errorCode != GetMarketPricesErrorEnum.OK:
+            raise ServiceError(rsp.errorCode)
+        return rsp.marketPrices
+        return uncompress_complete_market_prices(rsp.completeMarketPrices)
+
+    def get_complete_market_depth(self, market_id, currency=None):
         req = BFExchangeFactory.create("ns1:GetCompleteMarketPricesCompressedReq")
         req.marketId = market_id
         if currency:
@@ -241,17 +254,18 @@ class Session(object):
             raise ServiceError(rsp.header.errorCode)
         if rsp.errorCode != GetCompleteMarketPricesErrorEnum.OK:
             raise ServiceError(rsp.errorCode)
-        return uncompress_complete_market_prices(rsp.completeMarketPrices)
+        return uncompress_complete_market_depth(rsp.completeMarketPrices)
 
-    def get_market_depth(self, market_id, selection_id, currency,
+    def get_market_depth(self, market_id, selection_id, currency=None,
                          asian_line_id=None, locale=None):
         req = BFExchangeFactory.create("ns1:GetDetailedAvailMktDepthReq")
         req.marketId = market_id
         req.selectionId = selection_id
-        req.currencyCode = currency
+        if currency:
+            req.currencyCode = currency
         if asian_line_id is not None:
             req.asian_line_id = asian_line_id
-        if locale is not None:
+        if locale:
             req.locale = locale
         rsp = self._soapcall(BFExchangeService.getDetailedAvailableMktDepth, req)
         if rsp.errorCode == GetDetailedAvailMktDepthErrorEnum.API_ERROR:
