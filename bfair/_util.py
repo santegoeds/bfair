@@ -151,13 +151,10 @@ class DecompressMarketPrices(object):
     decode_prices = DecompressRunners()
 
     def __call__(self, data):
-        data = self.tokenize(data)
+        data = self.tokenize(data.strip())
         mp = self.decode_info(data[0])
         mp.append([ self.decode_prices(fld) for fld in data[1:] ])
         return MarketPrices(*mp)
-
-
-uncompress_market_prices = DecompressMarketPrices()
 
 
 class DecompressOneMarket(object):
@@ -195,8 +192,8 @@ class DecompressMarkets(object):
     decode = DecompressOneMarket()
 
     def __call__(self, data):
-        return [self.decode(f) for f in DecompressMarkets.tokenise(data) if f]
+        return [self.decode(f) for f in DecompressMarkets.tokenise(data.strip()) if f]
 
 
 uncompress_markets = DecompressMarkets()
-
+uncompress_market_prices = DecompressMarketPrices()
