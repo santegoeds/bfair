@@ -106,8 +106,10 @@ class DecompressRunners(object):
     def __call__(self, data):
         data = self.tokenise(data)
         prices = [ self.decode_price(fld) for fld in data[1:] if fld ]
-        back_prices = [ p for p in prices if p.betType == "B" ]
-        lay_prices = [ p for p in prices if p.betType == "L" ]
+        # Prices that are available to Lay are made up of unmatched "Back" bets whereas
+        # prices that are available to Back are made up of unmatched "Lay" bets
+        lay_prices = [p for p in prices if p.betType == "B"]
+        back_prices = [p for p in prices if p.betType == "L"]
         rp = self.decode_runner_price(data[0], lay_prices, back_prices)
         return rp
 

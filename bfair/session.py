@@ -53,6 +53,7 @@ GetCompleteMarketPricesErrorEnum = BFExchangeFactory.create("ns1:GetCompleteMark
 GetInPlayMarketsErrorEnum = BFExchangeFactory.create("ns1:GetInPlayMarketsErrorEnum")
 GetMarketPricesErrorEnum = BFExchangeFactory.create("ns1:GetMarketPricesErrorEnum")
 
+
 class ServiceError(Exception):
     pass
 
@@ -187,7 +188,7 @@ class Session(object):
             raise ServiceError(rsp.errorCode)
         return rsp.convertedAmount
 
-    def get_bet(self, id, lite=False):
+    def get_bet(self, id, lite=True):
         req = BFGlobalFactory.create("ns1:GetBetLiteReq") \
                 if lite else BFGlobalFactory.create("ns1:GetBetReq")
         req.betId = id
@@ -196,6 +197,7 @@ class Session(object):
         rsp = self._soapcall(func, req)
         if rsp.errorCode != GetBetErrorEnum.OK:
             raise ServiceError(rsp.header.errorCode)
+        # FIXME: Convert to a Bet or BetLite from _types.py
         return rsp.betlite if lite else rsp.bet
 
     def get_inplay_markets(self, locale=None):
