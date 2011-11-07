@@ -24,7 +24,7 @@ from os import path
 from datetime import datetime
 from suds.client import Client
 
-from _types import CurrencyV2, EventType
+from _types import Currency, EventType
 from _util import uncompress_market_prices, uncompress_markets
 
 
@@ -166,15 +166,14 @@ class Session(object):
         if v2:
             req = BFGlobalFactory.create("ns1:GetCurrenciesV2Req")
             srv = BFGlobalService.getAllCurrenciesV2
-            CurrencyType = CurrencyV2
         else:
             req = BFGlobalFactory.create("ns1:GetCurrenciesReq")
             srv = BFGlobalService.getAllCurrencies
-            CurrencyType = Currency
         rsp = self._soapcall(srv, req)
         if rsp.header.errorCode != APIErrorEnum.OK:
             raise ServiceError(rsp.header.errorCode)
-        return [CurrencyType(*c) for c in rsp.currencyItems[0]]
+        return [Currency(*(c if v2 else c + [None] * 3))
+                for c in rsp.currencyItems[0]]
 
     def convert_currency(self, amount, from_currency, to_currency):
         req = BFGlobalFactory.create("ns1:ConvertCurrencyReq")

@@ -71,15 +71,6 @@ Market = _mk_class(
 
 
 Currency = _mk_class(
-    "Currency", (
-        "currencyCode",
-        "rateGBP",
-    )
-)
-Currency.__str__ = lambda self: self.currencyCode
-
-
-CurrencyV2 = _mk_class(
     "CurrencyV2", (
         "currencyCode",
         "rateGBP",
@@ -88,7 +79,7 @@ CurrencyV2 = _mk_class(
         "minimumBSPLayLiability",
     )
 )
-CurrencyV2.__str__ = lambda self: self.currencyCode
+Currency.__str__ = lambda self: self.currencyCode
 
 
 MarketPrices = _mk_class(
