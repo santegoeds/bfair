@@ -71,7 +71,7 @@ Market = _mk_class(
 
 
 Currency = _mk_class(
-    "CurrencyV2", (
+    "Currency", (
         "currencyCode",
         "rateGBP",
         "minimumStake",
