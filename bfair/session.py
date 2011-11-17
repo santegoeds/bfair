@@ -57,6 +57,7 @@ GetMarketPricesErrorEnum = BFExchangeFactory.create("ns1:GetMarketPricesErrorEnu
 class ServiceError(Exception):
     pass
 
+FREE_API = 82
 
 class HeartBeat(threading.Thread):
 
@@ -91,7 +92,7 @@ class HeartBeat(threading.Thread):
 
 class Session(object):
 
-    def __init__(self, username, password, product_id = 82, vendor_id = 0):
+    def __init__(self, username, password, product_id = FREE_API, vendor_id = 0):
         super(Session, self).__init__()
         self._request_header = BFGlobalFactory.create("ns1:APIRequestHeader")
         self._request_header.clientStamp = 0
@@ -137,12 +138,12 @@ class Session(object):
         return self._heartbeat is not None
 
     def keep_alive(self):
-        req = BFGlobalFactory.create("ns1:KeepAliveRequest")
+        req = BFGlobalFactory.create("ns1:KeepAliveReq")
         rsp = self._soapcall(BFGlobalService.keepAlive, req)
         if rsp.header.errorCode != APIErrorEnum.OK:
             raise ServiceError(rsp.header.errorCode)
 
-    def get_events(self, active=True, locale=None):
+    def get_event_types(self, active=True, locale=None):
         """
         Returns a list of all categories of sporting events.
 
@@ -163,6 +164,8 @@ class Session(object):
         return [EventType(*[n[1] for n in e]) for e in rsp.eventTypeItems[0]]
 
     def get_currencies(self, v2=True):
+        if self.product_id == FREE_API:
+            raise ServiceError("Free API does not support get_currencies")
         if v2:
             req = BFGlobalFactory.create("ns1:GetCurrenciesV2Req")
             srv = BFGlobalService.getAllCurrenciesV2
@@ -176,6 +179,8 @@ class Session(object):
                 for c in rsp.currencyItems[0]]
 
     def convert_currency(self, amount, from_currency, to_currency):
+        if self.product_id == FREE_API:
+            raise ServiceError("Free API does not support convert_currency")
         req = BFGlobalFactory.create("ns1:ConvertCurrencyReq")
         req.amount = amount
         req.fromCurrency = from_currency
@@ -196,10 +201,17 @@ class Session(object):
         rsp = self._soapcall(func, req)
         if rsp.errorCode != GetBetErrorEnum.OK:
             raise ServiceError(rsp.header.errorCode)
-        # FIXME: Convert to a Bet or BetLite from _types.py
-        return rsp.betlite if lite else rsp.bet
+        if lite:
+            attrs = ["betCategoryType", "betId", "betPersistencType", "betStatus",
+                     "bspLiability", "marketId", "matchedSize", "remainingSize"]
+            bet = Bet(**{k: v for k, v in izip(attrs, rsp.betlite)})
+        else:
+            bet = Bet(*rsp.bet)
+        return bet
 
     def get_inplay_markets(self, locale=None):
+        if self.product_id == FREE_API:
+            raise ServiceError("Free API does not support get_inplay_markets")
         req = BFExchangeFactory.create("ns1:GetInPlayMarketsReq")
         if locale: req.locale = locale
         rsp = self._soapcall(BFExchangeService.getInPlayMarkets, req)
@@ -214,16 +226,11 @@ class Session(object):
         if event_ids:
             req.eventTypeIds = event_ids
         if countries:
-            req.countries = countries
+            req.countries = list(iter(countries))
         if date_range:
-            try:
-                req.fromDate = date_range.start
-            except AttributeError:
-                pass
-            try:
-                req.toDate = date_range.end
-            except AttributeError:
-                pass
+            req.fromDate = date_range[0]
+            if len(date_range) > 1:
+                req.toDate = date_range.end[-1]
         rsp = self._soapcall(BFExchangeService.getAllMarkets, req)
         if rsp.errorCode == GetAllMarketsErrorEnum.API_ERROR:
             raise ServiceError(rsp.header.errorCode)

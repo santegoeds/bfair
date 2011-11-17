@@ -20,41 +20,43 @@ def _mk_class(name, attrs):
     """Creates a class similar to a namedtuple.  These classes are compatible
     with SQLAlchemy, however.
     """
-    D = dict((attr, None) for attr in attrs)
-    class_ = type(name, (object,), D)
-
+    class_ = type(name, (object,), {attr: None for attr in attrs})
     class_.__slots__ = attrs
 
-    def init(self, *args):
-        for attr, val in izip(attrs, args):
+    def __init__(self, *args, **kwargs):
+        for attr, val in izip(self.__slots__, args):
             setattr(self, attr, val)
+        for k, v in kwargs.iteritems():
+            if k not in self.__slots__:
+                raise ValueError("%s : Invalid attribute" % k)
+            setattr(self, k, v)
 
-    def repr(self):
-        s = "".join(("<%s(", ", ".join(attrs), ")>"))
-        s = s % name
+    def __repr__(self):
+        s = ", ".join("=".join((a, repr(getattr(self, a)))) for a in self.__slots__)
+        s = "".join(("<", type(self).__name__, "(", s, ")>"))
         return s
 
-    def len_(self):
+    def __len__(self):
         return len(self.__slots__)
 
-    def getitem(self, i):
+    def __getitem__(self, i):
         return getattr(self, self.__slots__[i])
 
-    class_.__init__ = init
-    class_.__repr__ = repr
-    class_.__len__ = len_
-    class_.__getitem__ = getitem
+    class_.__init__ = __init__
+    class_.__repr__ = __repr__
+    class_.__len__ = __len__
+    class_.__getitem__ = __getitem__
 
     return class_
 
     
 Market = _mk_class(
     "Market", (
-        "marketId",         # Integer
-        "marketName",       # String
-        "marketType",       # String
-        "marketStatus",     # String
-        "marketTime",       # Datetime
+        "id",               # marketId
+        "name",             # marketName
+        "type",             # marketType
+        "status",           # marketStatus
+        "time",             # marketTime
         "menuPath",
         "eventHierarchy",
         "betDelay",
@@ -191,17 +193,5 @@ Match = _mk_class(
     )
 )
 
-BetLite = _mk_class(
-    "BetLite", (
-        "betCategoryType",
-        "betId",
-        "betPersistencType",
-        "betStatus",
-        "bspLiability",
-        "marketId",
-        "matchedSize",
-        "remainingSize",
-    )
-)
 
 del _mk_class

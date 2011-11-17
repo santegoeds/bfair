@@ -3,10 +3,21 @@ import pytest
 
 from bfair.session import Session
 
-def pytest_funcarg__session(request):
+def setup_session(request):
     user = request.config.option.user
     password = request.config.option.password
-    return Session(user, password)
+    session = Session(user, password)
+    session.login()
+    return session
+
+def teardown_session(session):
+    session.logout()
+                      
+
+def pytest_funcarg__session(request):
+    return request.cached_setup(setup = lambda: setup_session(request),
+                                teardown = teardown_session,
+                                scope = "session")
 
 def pytest_addoption(parser):
     parser.addoption("--user", action="store")
