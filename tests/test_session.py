@@ -5,6 +5,7 @@ from bfair.session import ServiceError
 needs_session = pytest.mark.needs_session
 skip = pytest.mark.skipif("True")
 
+
 @needs_session
 def test_logout_and_keepalive(session):
     session.logout()
@@ -15,14 +16,18 @@ def test_logout_and_keepalive(session):
     session.login()
     session.keep_alive()
 
-@needs_session
-def test_get_event_types(session):
-    all_events = session.get_event_types()
-    assert len(all_events) > 0
 
-    active_events = session.get_event_types(active=True)
-    assert len(active_events) > 0
-    assert len(active_events) <= len(all_events)
+@needs_session
+def test_get_events(session):
+    all_event_types = session.get_event_types()
+    assert len(all_event_types) > 0
+
+    active_event_types = session.get_event_types(active=True)
+    assert len(active_event_types) > 0
+    assert len(active_event_types) <= len(all_event_types)
+
+    events = session.get_events(active_event_types[0].id)
+    assert len(events) > 0
 
 
 @needs_session
@@ -32,18 +37,17 @@ def test_get_markets(session):
 
     countries = set(m.countryISO3 for m in all_markets)
 
+    has_international = "" in countries
+
+    # Remove empty country code (international markets) because
+    # the API does not accept it as input.
+    countries ^= set([""])
+
     markets = session.get_markets(countries=countries)
-    assert len(markets) == len(all_markets)
-
-    try:
-        countries.remove('')
-    except KeyError:
-        pass
-
-    if len(countries) > 2:
-        country = countries.pop()
-        markets = session.get_markets(countries=["ESP"])
+    if has_international:
         assert len(markets) < len(all_markets)
+    else:
+        assert len(markets) == len(all_markets)
 
 
 @pytest.mark.xfail

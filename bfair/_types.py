@@ -72,6 +72,36 @@ Market = _mk_class(
 )
 
 
+Event = _mk_class(
+    "Event", (
+        "eventItems",       # List of BFEvent
+        "eventParentId",    
+        "marketItems",      # List of MarketSummary
+        "couponLinks",      # List of CouponLink
+    )
+)
+
+
+MarketSummary = _mk_class(
+    "MarketSummary", (
+        "eventTypeId",
+        "exchangeId",
+        "eventParentId",
+        "marketId",
+        "marketName",
+        "marketType",
+        "marketTypeVariant",
+        "menuLevel",
+        "orderIndex",
+        "startTime",
+        "timezone",
+        "venue",
+        "betDelay",
+        "numberOfWinners",
+    )
+)
+
+
 Currency = _mk_class(
     "Currency", (
         "currencyCode",
@@ -108,6 +138,26 @@ EventType = _mk_class(
         "name",
         "nextMarketId",
         "exchangeId",
+    )
+)
+
+
+BFEvent = _mk_class(
+    "BFEvent", (
+        "id",
+        "name",
+        "eventTypeId",
+        "menuLevel",
+        "orderIndex",
+        "startTime",
+        "timezone",
+    )
+)
+
+CouponLink = _mk_class(
+    "CouponLink", (
+        "id",
+        "name",
     )
 )
 
