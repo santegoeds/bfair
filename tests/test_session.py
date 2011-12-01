@@ -2,11 +2,7 @@ import pytest
 
 from bfair.session import ServiceError
 
-needs_session = pytest.mark.needs_session
-skip = pytest.mark.skipif("True")
 
-
-@needs_session
 def test_logout_and_keepalive(session):
     session.logout()
     session.logout()
@@ -17,7 +13,6 @@ def test_logout_and_keepalive(session):
     session.keep_alive()
 
 
-@needs_session
 def test_get_events(session):
     all_event_types = session.get_event_types()
     assert len(all_event_types) > 0
@@ -30,7 +25,6 @@ def test_get_events(session):
     assert len(events) > 0
 
 
-@needs_session
 def test_get_markets(session):
     all_markets = session.get_markets()
     assert len(all_markets) > 0
@@ -50,26 +44,22 @@ def test_get_markets(session):
         assert len(markets) == len(all_markets)
 
 
-@pytest.mark.xfail
-@needs_session
 def test_get_inplay_markets(session):
-    markets = session.get_inplay_markets()
+    with pytest.raises(ServiceError):
+        markets = session.get_inplay_markets()
 
 
-@pytest.mark.xfail
-@needs_session
 def test_get_silks(session):
-    silks = session.get_silks()
+    with pytest.raises(ServiceError):
+        silks = session.get_silks()
 
 
-@pytest.mark.xfail
-@needs_session
 def test_cancel_bets_by_market(session):
-    silks = session.cancel_bets_by_market()
+    with pytest.raises(ServiceError):
+        silks = session.cancel_bets_by_market()
 
 
-@pytest.mark.xfail
-@needs_session
 def test_cancel_bets_by_market(session):
-    silks = session.cancel_bets_by_market()
+    with pytest.raises(ServiceError):
+        silks = session.cancel_bets_by_market()
 
