@@ -271,7 +271,7 @@ class Session(object):
 
     def get_market_depth(self, market_id, selection_id=None, currency=None,
                          asian_line_id=None, locale=None):
-        if selection_id is None:
+        if selection_id is None and currency is not None:
             return self._get_complete_market_depth(market_id, currency)
         req = BFExchangeFactory.create("ns1:GetDetailedAvailMktDepthReq")
         req.marketId = market_id
@@ -287,21 +287,18 @@ class Session(object):
             raise ServiceError(rsp.header.errorCode)
         if rsp.errorCode != GetDetailAvailMktDepthErrorEnum.OK:
             raise ServiceError(rsp.errorCode)
-        # TODO: Convert into our own types
-        return rsp.priceItems[0]
+        return [AvailabilityInfo(*p) for p in rsp.priceItems[0]]
 
-    def _get_complete_market_depth(self, market_id, currency=None):
+    def _get_complete_market_depth(self, market_id, currency):
         req = BFExchangeFactory.create("ns1:GetCompleteMarketPricesCompressedReq")
         req.marketId = market_id
-        if currency:
-            req.currencyCode = currency
+        req.currencyCode = currency
         rsp = self._soapcall(BFExchangeService.getCompleteMarketPricesCompressed, req)
         if rsp.errorCode == GetCompleteMarketPricesErrorEnum.API_ERROR:
             raise ServiceError(rsp.header.errorCode)
         if rsp.errorCode != GetCompleteMarketPricesErrorEnum.OK:
             raise ServiceError(rsp.errorCode)
         return uncompress_complete_market_depth(rsp.completeMarketPrices)
-
 
     def _soapcall(self, soapfunc, req):
         if hasattr(req, 'header'):
