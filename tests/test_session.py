@@ -35,7 +35,7 @@ def test_get_markets(session):
 
     # Remove empty country code (international markets) because
     # the API does not accept it as input.
-    countries ^= set([""])
+    countries &= (countries ^ set([""]))
 
     markets = session.get_markets(countries=countries)
     if has_international:
@@ -44,22 +44,17 @@ def test_get_markets(session):
         assert len(markets) == len(all_markets)
 
 
+@pytest.mark.xfail
 def test_get_inplay_markets(session):
-    with pytest.raises(ServiceError):
-        markets = session.get_inplay_markets()
+    markets = session.get_inplay_markets()
 
 
+@pytest.mark.xfail
 def test_get_silks(session):
-    with pytest.raises(ServiceError):
-        silks = session.get_silks()
+    silks = session.get_silks()
 
 
+@pytest.mark.xfail
 def test_cancel_bets_by_market(session):
-    with pytest.raises(ServiceError):
-        silks = session.cancel_bets_by_market()
-
-
-def test_cancel_bets_by_market(session):
-    with pytest.raises(ServiceError):
-        silks = session.cancel_bets_by_market()
+    session.cancel_bets_by_market()
 

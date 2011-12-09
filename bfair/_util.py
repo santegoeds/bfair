@@ -15,6 +15,7 @@
 #  limitations under the License.
 
 import re
+import functools
 
 from collections import namedtuple
 from itertools import izip
@@ -22,6 +23,13 @@ from datetime import datetime, time
 from pprint import pprint
 
 from ._types import *
+
+
+def not_implemented(fn):
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        raise NotImplementedError(fn.__name__)
+    return wrapper
 
 
 def as_datetime(s):

@@ -243,15 +243,15 @@ Match = _mk_class(
     )
 )
 
-AvailabilityInfo = _mk_class(
-    "AvailabilityInfo", (
-        "odds",
-        "totalAvailableBackAmount",
-        "totalAvailableLayAmount",
-        "totalBspBackAmount",
-        "totalBspLayAmount",
-    )
-)
+#AvailabilityInfo = _mk_class(
+#    "AvailabilityInfo", (
+#        "odds",
+#        "totalAvailableBackAmount",
+#        "totalAvailableLayAmount",
+#        "totalBspBackAmount",
+#        "totalBspLayAmount",
+#    )
+#)
 
 
 del _mk_class

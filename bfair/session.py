@@ -15,49 +15,25 @@
 #  limitations under the License.
 
 import threading
-import logging
 
-logging.basicConfig(level=logging.INFO)
-#logging.getLogger('suds.client').setLevel(logging.DEBUG)
-
-from os import path
 from datetime import datetime
-from suds.client import Client
 
-from _types import Currency, EventType, BFEvent, MarketSummary, CouponLink, Event
-from _util import uncompress_market_prices, uncompress_markets
-
-
-__all__ = ("ServiceError", "Session")
+from ._types import Currency, EventType, BFEvent, MarketSummary, CouponLink, Event
+from ._util import uncompress_market_prices, uncompress_markets, not_implemented
+from ._soap import *
 
 
-BFGlobalServiceUrl = "file://" + path.abspath(path.join(path.dirname(__file__), "wsdl/BFGlobalService.wsdl"))
-BFGlobalServiceUrl = "https://api.betfair.com/global/v3/BFGlobalService.wsdl"
-BFGlobalServiceClient = Client(BFGlobalServiceUrl)
-BFGlobalService = BFGlobalServiceClient.service
-BFGlobalFactory = BFGlobalServiceClient.factory
-
-BFExchangeServiceUrl = "file://" + path.abspath(path.join(path.dirname(__file__), "wsdl/BFExchangeService.wsdl"))
-BFExchangeServiceUrl = "https://api.betfair.com/exchange/v5/BFExchangeService.wsdl"
-BFExchangeServiceClient = Client(BFExchangeServiceUrl)
-BFExchangeService = BFExchangeServiceClient.service
-BFExchangeFactory = BFExchangeServiceClient.factory
-
-# Error enumerations
-APIErrorEnum = BFGlobalFactory.create("ns1:APIErrorEnum")
-GetEventsErrorEnum = BFGlobalFactory.create("ns1:GetEventsErrorEnum")
-ConvertCurrencyErrorEnum = BFGlobalFactory.create("ns1:ConvertCurrencyErrorEnum")
-GetBetErrorEnum = BFExchangeFactory.create("ns1:GetBetErrorEnum")
-GetAllMarketsErrorEnum = BFExchangeFactory.create("ns1:GetAllMarketsErrorEnum")
-GetCompleteMarketPricesErrorEnum = BFExchangeFactory.create("ns1:GetCompleteMarketPricesErrorEnum")
-GetInPlayMarketsErrorEnum = BFExchangeFactory.create("ns1:GetInPlayMarketsErrorEnum")
-GetMarketPricesErrorEnum = BFExchangeFactory.create("ns1:GetMarketPricesErrorEnum")
+__all__ = [
+    "ServiceError", "Session", "FREE_API"
+]
 
 
 class ServiceError(Exception):
     pass
 
+
 FREE_API = 82
+
 
 class HeartBeat(threading.Thread):
 
@@ -91,6 +67,8 @@ class HeartBeat(threading.Thread):
 
 
 class Session(object):
+    """
+    """
 
     def __init__(self, username, password, product_id=FREE_API, vendor_id=0):
         super(Session, self).__init__()
@@ -111,6 +89,8 @@ class Session(object):
             self.logout();
 
     def login(self):
+        """Login and establish a secure session.
+        """
         req = BFGlobalFactory.create("ns1:LoginReq")
         req.username = self.username
         req.password = self.password
@@ -226,6 +206,66 @@ class Session(object):
             bet = Bet(*rsp.bet)
         return bet
 
+    @not_implemented
+    def cancel_bets(self):
+        pass
+
+    @not_implemented
+    def cancel_bets_by_market(self):
+        pass
+
+    @not_implemented
+    def place_bets(self):
+        pass
+
+    @not_implemented
+    def update_bets(self):
+        pass
+
+    @not_implemented
+    def get_bet_history(self):
+        pass
+
+    @not_implemented
+    def get_bet_matches_lite(self):
+        pass
+
+    @not_implemented
+    def get_current_bets(self):
+        pass
+
+    @not_implemented
+    def get_current_bets_lite(self):
+        pass
+
+    @not_implemented
+    def get_matched_and_unmatched_bets(self):
+        pass
+
+    @not_implemented
+    def get_market_profit_loss(self):
+        pass
+
+    @not_implemented
+    def get_market_traded_volume(self):
+        pass
+
+    @not_implemented
+    def get_market_traded_volume_compressed(self):
+        pass
+
+    @not_implemented
+    def get_private_markets(self):
+        pass
+
+    @not_implemented
+    def get_silks(self):
+        pass
+
+    @not_implemented
+    def get_sliks_v2(self):
+        pass
+
     def get_inplay_markets(self, locale=None):
         if self.product_id == FREE_API:
             raise ServiceError("Free API does not support get_inplay_markets")
@@ -256,6 +296,10 @@ class Session(object):
         markets = uncompress_markets(rsp.marketData)
         return markets
 
+    @not_implemented
+    def get_market_info(self):
+        pass
+
     def get_market_prices(self, market_id, currency=None):
         req = BFExchangeFactory.create("ns1:GetMarketPricesCompressedReq")
         req.marketId = market_id
@@ -269,27 +313,26 @@ class Session(object):
         prices = uncompress_market_prices(rsp.marketPrices)
         return prices
 
-    def get_market_depth(self, market_id, selection_id=None, currency=None,
-                         asian_line_id=None, locale=None):
-        if selection_id is None and currency is not None:
-            return self._get_complete_market_depth(market_id, currency)
-        req = BFExchangeFactory.create("ns1:GetDetailedAvailMktDepthReq")
-        req.marketId = market_id
-        req.selectionId = selection_id
-        if currency:
-            req.currencyCode = currency
-        if asian_line_id is not None:
-            req.asian_line_id = asian_line_id
-        if locale:
-            req.locale = locale
-        rsp = self._soapcall(BFExchangeService.getDetailedAvailableMktDepth, req)
-        if rsp.errorCode == GetDetailedAvailMktDepthErrorEnum.API_ERROR:
-            raise ServiceError(rsp.header.errorCode)
-        if rsp.errorCode != GetDetailAvailMktDepthErrorEnum.OK:
-            raise ServiceError(rsp.errorCode)
-        return [AvailabilityInfo(*p) for p in rsp.priceItems[0]]
+    # Betfair recommend to use getCompleteMarketPricesCompressed instead
+    #def get_market_depth(self, market_id, selection_id, currency=None,
+    #                     asian_line_id=None, locale=None):
+    #    req = BFExchangeFactory.create("ns1:GetDetailedAvailMktDepthReq")
+    #    req.marketId = market_id
+    #    req.selectionId = selection_id
+    #    if currency:
+    #        req.currencyCode = currency
+    #    if asian_line_id is not None:
+    #        req.asian_line_id = asian_line_id
+    #    if locale:
+    #        req.locale = locale
+    #    rsp = self._soapcall(BFExchangeService.getDetailedAvailableMktDepth, req)
+    #    if rsp.errorCode == GetDetailedAvailMktDepthErrorEnum.API_ERROR:
+    #        raise ServiceError(rsp.header.errorCode)
+    #    if rsp.errorCode != GetDetailAvailMktDepthErrorEnum.OK:
+    #        raise ServiceError(rsp.errorCode)
+    #    return [AvailabilityInfo(*p) for p in rsp.priceItems[0]]
 
-    def _get_complete_market_depth(self, market_id, currency):
+    def get_market_depth(self, market_id, currency):
         req = BFExchangeFactory.create("ns1:GetCompleteMarketPricesCompressedReq")
         req.marketId = market_id
         req.currencyCode = currency
@@ -299,6 +342,86 @@ class Session(object):
         if rsp.errorCode != GetCompleteMarketPricesErrorEnum.OK:
             raise ServiceError(rsp.errorCode)
         return uncompress_complete_market_depth(rsp.completeMarketPrices)
+
+    @not_implemented
+    def add_payment_card(self):
+        pass
+
+    @not_implemented
+    def delete_payment_card(self):
+        pass
+
+    @not_implemented
+    def deposit_from_payment_card(self):
+        pass
+
+    @not_implemented
+    def forgot_password(self):
+        pass
+
+    @not_implemented
+    def get_account_funds(self):
+        pass
+
+    @not_implemented
+    def get_account_statement(self):
+        pass
+
+    @not_implemented
+    def get_payment_card(self):
+        pass
+
+    @not_implemented
+    def get_subscription_info(self):
+        pass
+
+    @not_implemented
+    def modify_password(self):
+        pass
+
+    @not_implemented
+    def modify_profile(self):
+        pass
+
+    @not_implemented
+    def retrieve_limb_message(self):
+        pass
+
+    @not_implemented
+    def self_exclude(self):
+        pass
+
+    @not_implemented
+    def set_chat_name(self):
+        pass
+
+    @not_implemented
+    def submit_limb_message(self):
+        pass
+
+    @not_implemented
+    def transfer_funds(self):
+        pass
+
+    @not_implemented
+    def update_payment_card(self):
+        pass
+
+    @not_implemented
+    def view_profile(self):
+        pass
+
+    @not_implemented
+    def view_profile_v2(self):
+        pass
+
+    @not_implemented
+    def view_refer_and_earn(self):
+        pass
+
+    @not_implemented
+    def withdraw_to_payment_card(self):
+        pass
 
     def _soapcall(self, soapfunc, req):
         if hasattr(req, 'header'):
