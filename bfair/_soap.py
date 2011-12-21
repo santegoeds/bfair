@@ -22,7 +22,7 @@ __all__ = [
     "BFGlobalService", "BFGlobalFactory", "BFExchangeService", "BFExchangeFactory",
     "APIErrorEnum", "GetEventsErrorEnum", "ConvertCurrencyErrorEnum", "GetBetErrorEnum",
     "GetAllMarketsErrorEnum", "GetCompleteMarketPricesErrorEnum", "GetInPlayMarketsErrorEnum",
-    "GetMarketPricesErrorEnum",
+    "GetMarketPricesErrorEnum", "GetMarketErrorEnum",
 ]
 
 
@@ -47,4 +47,5 @@ GetAllMarketsErrorEnum = BFExchangeFactory.create("ns1:GetAllMarketsErrorEnum")
 GetCompleteMarketPricesErrorEnum = BFExchangeFactory.create("ns1:GetCompleteMarketPricesErrorEnum")
 GetInPlayMarketsErrorEnum = BFExchangeFactory.create("ns1:GetInPlayMarketsErrorEnum")
 GetMarketPricesErrorEnum = BFExchangeFactory.create("ns1:GetMarketPricesErrorEnum")
+GetMarketErrorEnum = BFExchangeFactory.create("ns1:GetMarketErrorEnum")
 

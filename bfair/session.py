@@ -14,18 +14,21 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import logging
 import threading
 
 from datetime import datetime
 
-from ._types import Currency, EventType, BFEvent, MarketSummary, CouponLink, EventInfo
-from ._util import uncompress_market_prices, uncompress_markets, not_implemented
-from ._soap import *
+from bfair._types import Currency, EventType, BFEvent, MarketSummary, CouponLink, EventInfo, MarketInfo, Runner
+from bfair._util import uncompress_market_prices, uncompress_markets, not_implemented
+from bfair._soap import *
 
 
 __all__ = [
     "ServiceError", "Session", "FREE_API"
 ]
+
+logger = logging.getLogger(__name__)
 
 
 class ServiceError(Exception):
@@ -123,7 +126,7 @@ class Session(object):
         req = BFGlobalFactory.create("ns1:KeepAliveReq")
         rsp = self._soapcall(BFGlobalService.keepAlive, req)
         if rsp.header.errorCode != APIErrorEnum.OK:
-            raise ServiceError(rsp.header.errorCode)
+            logger.error("keepAlive failed with error {%s}", rsp.header.errorCode)
 
     def get_event_types(self, active=True, locale=None):
         """Returns a list that is the root all categories of sporting events.
@@ -184,7 +187,6 @@ class Session(object):
             raise ServiceError(rsp.header.errorCode)
         if rsp.errorCode not in (GetEventsErrorEnum.OK, GetEventsErrorEnum.NO_RESULTS):
             raise ServiceError(rsp.errorCode)
-        print rsp
         rsp = [
             [BFEvent(*[T[1] for T in e]) for e in rsp.eventItems[0]] if rsp.eventItems else [],
             rsp.eventParentId,
@@ -273,6 +275,8 @@ class Session(object):
         if lite:
             return self._get_market_info_lite(market_id)
         req = BFExchangeFactory.create("ns1:GetMarketReq")
+        req.marketId = market_id
+        req.includeCouponLinks = bool(coupon_links)
         if locale:
             req.locale = locale
         rsp = self._soapcall(BFExchangeService.getMarket, req)
@@ -280,11 +284,12 @@ class Session(object):
             raise ServiceError(rsp.header.errorCode)
         if rsp.errorCode != GetMarketErrorEnum.OK:
             raise ServiceError(rsp.errorCode)
-        coupon_links = [CouponLink(*lnk) for lnk in rsp.couponLinks[0] if lnk]
-        runners = [Runner(*runner) for runner in rsp.runners[0] if runner]
-        rsp = MarketInfo(*rsp)
+        market = rsp.market
+        coupon_links = [CouponLink(*lnk) for lnk in market.couponLinks[0] if lnk] if market.couponLinks else []
+        runners = [Runner(*runner) for runner in market.runners[0] if runner] if market.runners else []
+        rsp = MarketInfo(*market)
         rsp.couponLinks = coupon_links
-        rps.runners = runners
+        rsp.runners = runners
         return rsp
 
     @not_implemented

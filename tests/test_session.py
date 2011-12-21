@@ -1,5 +1,6 @@
 import pytest
 
+from datetime import datetime
 from itertools import izip
 from bfair.session import ServiceError
 
@@ -7,20 +8,31 @@ from bfair.session import ServiceError
 def test_logout_and_keepalive(session):
     session.logout()
     session.logout()
-    with pytest.raises(ServiceError):
-        session.keep_alive()
+    session.keep_alive()
     session.login()
     session.login()
     session.keep_alive()
 
 
 def test_get_event_types(session):
+    def assert_type(type_):
+        assert isinstance(type_.id, int)
+        assert isinstance(type_.name, basestring)
+        assert isinstance(type_.nextMarketId, int)
+        assert isinstance(type_.exchangeId, int)
+
+    # Active event types
     types = session.get_event_types()
     assert len(types) > 0
+    for type in types:
+        assert_type(type)
 
+    # All event types
     all_types = session.get_event_types(active=False)
     assert len(all_types) > 0
     assert len(types) <= len(all_types)
+    for type in all_types:
+        assert_type(type)
 
 
 def test_get_event_info(session):
@@ -29,10 +41,52 @@ def test_get_event_info(session):
 
     event_info = session.get_event_info(types[0].id)
 
+    assert isinstance(event_info.eventParentId, int)
     assert isinstance(event_info.eventItems, list)
     assert isinstance(event_info.marketItems, list)
     assert isinstance(event_info.couponLinks, list)
     assert event_info.eventItems or event_info.marketItems
+
+
+def test_get_market_info(session):
+
+    def event_infos(ids):
+        for id in ids:
+            info = session.get_event_info(id)
+            yield info
+            for info in event_infos(e.eventId for e in info.eventItems):
+                yield info
+                
+    # Navigate to an available market
+    type_ids = (type.id for type in session.get_event_types())
+    infos = event_infos(type_ids)
+    summaries = (m for info in infos for m in info.marketItems)
+
+    market_summary = summaries.next()
+
+    assert isinstance(market_summary.eventTypeId, int)
+    assert isinstance(market_summary.marketId, int)
+    assert isinstance(market_summary.marketName, basestring)
+    assert isinstance(market_summary.marketType, basestring)
+    assert isinstance(market_summary.marketTypeVariant, basestring)
+    assert isinstance(market_summary.menuLevel, int)
+    assert isinstance(market_summary.orderIndex, int)
+    assert isinstance(market_summary.startTime, datetime)
+    assert isinstance(market_summary.timezone, basestring)
+    assert isinstance(market_summary.venue, (basestring, type(None)))
+    assert isinstance(market_summary.betDelay, int)
+    assert isinstance(market_summary.numberOfWinners, int)
+    assert isinstance(market_summary.eventParentId, int)
+    assert isinstance(market_summary.exchangeId, int)
+    
+    market_id = market_summary.marketId
+
+    assert_market_info(session.get_market_info(market_id))
+    assert_market_info(session.get_market_info(market_id, lite=False))
+    assert_market_info(session.get_market_info(market_id, lite=False, coupon_links=True))
+
+    with pytest.raises(ServiceError):
+        session.get_market_info(market_id, coupon_links=True)
 
 
 def test_get_markets(session):
@@ -52,34 +106,6 @@ def test_get_markets(session):
         assert len(markets) < len(all_markets)
     else:
         assert len(markets) == len(all_markets)
-
-
-def test_get_market_info(session):
-
-    def event_infos(ids):
-        for id in ids:
-            info = session.get_event_info(id)
-            yield info
-            for info in event_infos(e.eventId for e in info.eventItems):
-                yield info
-                
-    # Navigate to an available market
-    type_ids = (type.id for type in session.get_event_types())
-    infos = event_infos(type_ids)
-    summaries = (m for info in infos for m in info.marketItems)
-
-    market_summary = summaries.next()
-
-    print market_summary
-
-    market_id = market_summary.marketId
-
-    session.get_market_info(market_id)
-    session.get_market_info(market_id, lite=False)
-    session.get_market_info(market_id, lite=False, coupon_links=True)
-
-    with pytest.raises(ServiceError):
-        session.get_market_info(market_id, coupon_links=True)
 
 
 @pytest.mark.xfail
