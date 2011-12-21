@@ -18,7 +18,7 @@ import threading
 
 from datetime import datetime
 
-from ._types import Currency, EventType, BFEvent, MarketSummary, CouponLink, Event
+from ._types import Currency, EventType, BFEvent, MarketSummary, CouponLink, EventInfo
 from ._util import uncompress_market_prices, uncompress_markets, not_implemented
 from ._soap import *
 
@@ -108,6 +108,8 @@ class Session(object):
         self._heartbeat.start()
 
     def logout(self):
+        """Terminates the session by logging out of the account.
+        """
         if self._heartbeat:
             self._heartbeat.stop()
         self._heartbeat = None
@@ -124,26 +126,55 @@ class Session(object):
             raise ServiceError(rsp.header.errorCode)
 
     def get_event_types(self, active=True, locale=None):
-        """
-        Returns a list of all categories of sporting events.
+        """Returns a list that is the root all categories of sporting events.
 
+        Parameters
+        ----------
         active : `bool`
-            If `True` then only events that have at least one
-            market available to bet on are returned.
+            If `True` then only events that have at least one market available to
+            bet on are returned.
+        locale : `str` or `None`
+            Language for the response.  If None then the default language for the
+            account will be used
+
+        Returns
+        -------
+        A list of `EventType` objects.
         """
         req = BFGlobalFactory.create("ns1:GetEventTypesReq")
-        if locale: req.locale = locale
-        func = BFGlobalService.getActiveEventTypes \
-                if active else BFGlobalService.getAllEventTypes
+        if locale:
+            req.locale = locale
+        if active:
+            func = BFGlobalService.getActiveEventTypes
+        else:
+            func = BFGlobalService.getAllEventTypes
         rsp = self._soapcall(func, req)
         if rsp.errorCode == GetEventsErrorEnum.API_ERROR:
             raise ServiceError(rsp.header.errorCode)
         if rsp.errorCode not in (GetEventsErrorEnum.OK, GetEventsErrorEnum.NO_RESULTS):
             raise ServiceError(rsp.errorCode)
-        event_types = [EventType(*[T[1] for T in e]) for e in rsp.eventTypeItems[0]]
-        return event_types
+        if rsp.eventTypeItems:
+            rsp = [EventType(*[T[1] for T in e]) for e in rsp.eventTypeItems[0]]
+        else:
+            rsp = []
+        return rsp
 
-    def get_events(self, parent_id, locale=None):
+    def get_event_info(self, parent_id, locale=None):
+        """Allows navigating the event hierarchy.  Where markets are available details
+        of line and range markets are included in the result.
+
+        Parameters
+        ----------
+        parent_id : `int`
+            Event id or Event Type id.
+        locale : `str` or `None`
+            Language of the response.  If None the default language for the account
+            will be used.
+
+        Returns
+        -------
+        An `EventInfo` object.
+        """
         req = BFGlobalFactory.create("ns1:GetEventsReq")
         req.eventParentId = int(parent_id)
         if locale:
@@ -153,13 +184,14 @@ class Session(object):
             raise ServiceError(rsp.header.errorCode)
         if rsp.errorCode not in (GetEventsErrorEnum.OK, GetEventsErrorEnum.NO_RESULTS):
             raise ServiceError(rsp.errorCode)
+        print rsp
         rsp = [
             [BFEvent(*[T[1] for T in e]) for e in rsp.eventItems[0]] if rsp.eventItems else [],
             rsp.eventParentId,
-            [MarketSummary(*[T[1] for T in s]) for s in rsp.marketItems[0]] if rsp.marketItems else [],
+            [MarketSummary(*[T[1] for T in ms]) for ms in rsp.marketItems[0]] if rsp.marketItems else [],
             [CouponLink(*[T[1] for T in l]) for l in rsp.couponLinks[0]] if rsp.couponLinks else [],
         ]
-        return Event(*rsp)
+        return EventInfo(*rsp)
 
     def get_currencies(self, v2=True):
         if self.product_id == FREE_API:
@@ -189,22 +221,71 @@ class Session(object):
             raise ServiceError(rsp.errorCode)
         return rsp.convertedAmount
 
-    def get_bet(self, id, lite=True):
-        req = BFGlobalFactory.create("ns1:GetBetLiteReq") \
-                if lite else BFGlobalFactory.create("ns1:GetBetReq")
-        req.betId = id
-        func = BFExchangeService.getBetLite \
-                if lite else BFExchangeService.getBet
+    def get_bet_info(self, bet_id, lite=True):
+        """Returns bet information.
+
+        Parameters
+        ----------
+        bet_id : `int`
+            Bet id.
+        lite : `bool`
+            If True (the default) only limited information is returned.
+
+        Returns
+        -------
+        A BetInfo instance.
+        """
+        if lite:
+            req = BFGlobalFactory.create("ns1:GetBetLiteReq")
+            func = BFExchangeService.getBetLite
+        else:
+            req = BFGlobalFactory.create("ns1:GetBetReq")
+            func = BFExchangeService.getBet
+        req.betId = bet_id
         rsp = self._soapcall(func, req)
         if rsp.errorCode != GetBetErrorEnum.OK:
             raise ServiceError(rsp.header.errorCode)
         if lite:
             attrs = ["betCategoryType", "betId", "betPersistencType", "betStatus",
                      "bspLiability", "marketId", "matchedSize", "remainingSize"]
-            bet = Bet(**{k: v for k, v in izip(attrs, rsp.betlite)})
+            bet = BetInfo(**{k: v for k, v in izip(attrs, rsp.betlite)})
         else:
-            bet = Bet(*rsp.bet)
+            bet = BetInfo(*rsp.bet)
         return bet
+
+    def get_market_info(self, market_id, lite=True, coupon_links=False, locale=None):
+        """Returns static market information for a single market.
+
+        market_id : `int`
+            Id of the market for which market information is returned.
+        lite : `bool`
+            Lite information (default is True). Mutually exclusive with parameter
+            "coupon_links".
+        coupon_links : `bool`
+            Include coupon data (default is False). Mutually exclusive with parameter
+            "lite".
+        locale : `str`
+            Language for the reply.  Default is None in which case the default
+            language of the account is used.
+        """
+        if lite and coupon_links:
+            raise ServiceError("parameters `lite` and `coupon_links` are mutually exclusive")
+        if lite:
+            return self._get_market_info_lite(market_id)
+        req = BFExchangeFactory.create("ns1:GetMarketReq")
+        if locale:
+            req.locale = locale
+        rsp = self._soapcall(BFExchangeService.getMarket, req)
+        if rsp.errorCode == GetMarketErrorEnum.API_ERROR:
+            raise ServiceError(rsp.header.errorCode)
+        if rsp.errorCode != GetMarketErrorEnum.OK:
+            raise ServiceError(rsp.errorCode)
+        coupon_links = [CouponLink(*lnk) for lnk in rsp.couponLinks[0] if lnk]
+        runners = [Runner(*runner) for runner in rsp.runners[0] if runner]
+        rsp = MarketInfo(*rsp)
+        rsp.couponLinks = coupon_links
+        rps.runners = runners
+        return rsp
 
     @not_implemented
     def cancel_bets(self):
@@ -230,6 +311,7 @@ class Session(object):
     def get_bet_matches_lite(self):
         pass
 
+    # Betfair advice to use get_matched_unmatched_bets instead.
     @not_implemented
     def get_current_bets(self):
         pass
@@ -296,9 +378,6 @@ class Session(object):
         markets = uncompress_markets(rsp.marketData)
         return markets
 
-    @not_implemented
-    def get_market_info(self):
-        pass
 
     def get_market_prices(self, market_id, currency=None):
         req = BFExchangeFactory.create("ns1:GetMarketPricesCompressedReq")
@@ -314,8 +393,8 @@ class Session(object):
         return prices
 
     # Betfair recommend to use getCompleteMarketPricesCompressed instead
-    #def get_market_depth(self, market_id, selection_id, currency=None,
-    #                     asian_line_id=None, locale=None):
+    #def get_detail_available_market_depth(self, market_id, selection_id, currency=None,
+    #                                      asian_line_id=None, locale=None):
     #    req = BFExchangeFactory.create("ns1:GetDetailedAvailMktDepthReq")
     #    req.marketId = market_id
     #    req.selectionId = selection_id
@@ -422,6 +501,19 @@ class Session(object):
     @not_implemented
     def withdraw_to_payment_card(self):
         pass
+
+    def _get_market_info_lite(self, market_id):
+        req = BFExchangeFactory.create("ns1:GetMarketInfoReq")
+        req.marketId = market_id
+        rsp = self._soapcall(BFExchangeService.getMarketInfo, req)
+        if rsp.errorCode == GetMarketErrorEnum.API_ERROR:
+            raise ServiceError(rsp.header.errorCode)
+        if rsp.errorCode != GetMarketErrorEnum.OK:
+            raise ServiceError(rsp.errorCode)
+        attrs = ["delay", "marketStatus", "marketSuspendTime", "marketTime",
+                 "numberOfRunners", "openForBspBetting"]
+        rsp = MarketInfo(*zip(attrs, rsp))
+        return rsp
 
     def _soapcall(self, soapfunc, req):
         if hasattr(req, 'header'):

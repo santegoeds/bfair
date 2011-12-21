@@ -52,11 +52,11 @@ def _mk_class(name, attrs):
     
 Market = _mk_class(
     "Market", (
-        "id",               # marketId
-        "name",             # marketName
-        "type",             # marketType
-        "status",           # marketStatus
-        "time",             # marketTime
+        "marketId",
+        "marketName",
+        "marketType",
+        "marketStatus",
+        "marketTime",
         "menuPath",
         "eventHierarchy",
         "betDelay",
@@ -72,8 +72,8 @@ Market = _mk_class(
 )
 
 
-Event = _mk_class(
-    "Event", (
+EventInfo = _mk_class(
+    "EventInfo", (
         "eventItems",       # List of BFEvent
         "eventParentId",    
         "marketItems",      # List of MarketSummary
@@ -82,11 +82,22 @@ Event = _mk_class(
 )
 
 
+BFEvent = _mk_class(
+    "BFEvent", (
+        "eventId",
+        "eventName",
+        "eventTypeId",
+        "menuLevel",
+        "orderIndex",
+        "startTime",
+        "timezone",
+    )
+)
+
+
 MarketSummary = _mk_class(
     "MarketSummary", (
         "eventTypeId",
-        "exchangeId",
-        "eventParentId",
         "marketId",
         "marketName",
         "marketType",
@@ -98,7 +109,9 @@ MarketSummary = _mk_class(
         "venue",
         "betDelay",
         "numberOfWinners",
-    )
+        "eventParentId",
+        "exchangeId",
+        )
 )
 
 
@@ -142,22 +155,10 @@ EventType = _mk_class(
 )
 
 
-BFEvent = _mk_class(
-    "BFEvent", (
-        "id",
-        "name",
-        "eventTypeId",
-        "menuLevel",
-        "orderIndex",
-        "startTime",
-        "timezone",
-    )
-)
-
 CouponLink = _mk_class(
     "CouponLink", (
-        "id",
-        "name",
+        "couponId",
+        "couponName",
     )
 )
 
@@ -190,6 +191,15 @@ Price = _mk_class(
     )
 )
 
+Runner = _mk_class(
+    "Runner", (
+        "asianLineId",
+        "handicap",
+        "name",
+        "selectionId",
+    )
+)
+
 RemovedRunner = _mk_class(
     "RemovedRunner", (
         "selection_name",
@@ -198,8 +208,8 @@ RemovedRunner = _mk_class(
     )
 )
 
-Bet = _mk_class(
-    "Bet", (
+BetInfo = _mk_class(
+    "BetInfo", (
         "asianLineId",
         "avgPrice",
         "betCategoryType",
@@ -243,16 +253,39 @@ Match = _mk_class(
     )
 )
 
-#AvailabilityInfo = _mk_class(
-#    "AvailabilityInfo", (
-#        "odds",
-#        "totalAvailableBackAmount",
-#        "totalAvailableLayAmount",
-#        "totalBspBackAmount",
-#        "totalBspLayAmount",
-#    )
-#)
-
+MarketInfo = _mk_class(
+    "MarketInfo", (
+        "bspMarket",
+        "countryISO3",
+        "couponLinks",      # List of CouponLink
+        "discountAllowed",
+        "eventHierarchy",
+        "eventTypeId",
+        "interval",
+        "lastRefresh",
+        "licenseId",
+        "marketBaseRate",
+        "marketDescription",
+        "marketDescriptionHasDate",
+        "marketDisplayTime",
+        "marketId",
+        "marketStatus",
+        "marketSuspendTime",
+        "marketTime",
+        "marketType",
+        "marketTypeVariant",
+        "maxUnitValue",
+        "menuPath",
+        "minUnitValue",
+        "name",
+        "numberOfWinners",
+        "parentEventId",
+        "runners",          # List of Runners
+        "runnersMayBeAdded",
+        "timezone",
+        "unit",
+    )
+)
 
 del _mk_class
 
