@@ -36,6 +36,9 @@ def _mk_class(name, attrs):
         s = "".join(("<", type(self).__name__, "(", s, ")>"))
         return s
 
+    def __str__(self):
+        return repr(self)
+
     def __len__(self):
         return len(self.__slots__)
 
@@ -44,6 +47,7 @@ def _mk_class(name, attrs):
 
     class_.__init__ = __init__
     class_.__repr__ = __repr__
+    class_.__str__ = __str__
     class_.__len__ = __len__
     class_.__getitem__ = __getitem__
 
@@ -255,37 +259,50 @@ Match = _mk_class(
 
 MarketInfo = _mk_class(
     "MarketInfo", (
-        "bspMarket",
-        "countryISO3",
-        "couponLinks",      # List of CouponLink
-        "discountAllowed",
-        "eventHierarchy",
-        "eventTypeId",
-        "interval",
-        "lastRefresh",
-        "licenseId",
-        "marketBaseRate",
-        "marketDescription",
-        "marketDescriptionHasDate",
-        "marketDisplayTime",
-        "marketId",
+        'countryISO3',
+        'discountAllowed',
+        'eventTypeId',
+        'lastRefresh',
+        'marketBaseRate',
+        'marketDescription',
+        'marketDescriptionHasDate',
+        'marketDisplayTime',
+        'marketId',
+        'marketStatus',
+        'marketSuspendTime',
+        'marketTime',
+        'marketType',
+        'marketTypeVariant',
+        'menuPath',
+        'eventHierarchy',
+        'name',
+        'numberOfWinners',
+        'parentEventId',
+        'runners',          # List of Runners
+        'unit',
+        'maxUnitValue',
+        'minUnitValue',
+        'interval',
+        'runnersMayBeAdded',
+        'timezone',
+        'licenceId',
+        'couponLinks',      # List of CouponLink
+        'bspMarket',
+    )
+)
+
+MarketInfoLite = _mk_class(
+    "MarketInfoLite", (
         "marketStatus",
         "marketSuspendTime",
         "marketTime",
-        "marketType",
-        "marketTypeVariant",
-        "maxUnitValue",
-        "menuPath",
-        "minUnitValue",
-        "name",
-        "numberOfWinners",
-        "parentEventId",
-        "runners",          # List of Runners
-        "runnersMayBeAdded",
-        "timezone",
-        "unit",
+        "numberOfRunners",
+        "delay",
+        "reconciled",
+        "openForBspBetting",
     )
 )
+
 
 del _mk_class
 

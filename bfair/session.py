@@ -18,10 +18,11 @@ import logging
 import threading
 
 from datetime import datetime
+from itertools import izip
 
-from bfair._types import Currency, EventType, BFEvent, MarketSummary, CouponLink, EventInfo, MarketInfo, Runner
-from bfair._util import uncompress_market_prices, uncompress_markets, not_implemented
+from bfair._types import *
 from bfair._soap import *
+from bfair._util import uncompress_market_prices, uncompress_markets, not_implemented
 
 
 __all__ = [
@@ -260,9 +261,6 @@ class Session(object):
 
         market_id : `int`
             Id of the market for which market information is returned.
-        lite : `bool`
-            Lite information (default is True). Mutually exclusive with parameter
-            "coupon_links".
         coupon_links : `bool`
             Include coupon data (default is False). Mutually exclusive with parameter
             "lite".
@@ -270,10 +268,6 @@ class Session(object):
             Language for the reply.  Default is None in which case the default
             language of the account is used.
         """
-        if lite and coupon_links:
-            raise ServiceError("parameters `lite` and `coupon_links` are mutually exclusive")
-        if lite:
-            return self._get_market_info_lite(market_id)
         req = BFExchangeFactory.create("ns1:GetMarketReq")
         req.marketId = market_id
         req.includeCouponLinks = bool(coupon_links)
@@ -285,12 +279,26 @@ class Session(object):
         if rsp.errorCode != GetMarketErrorEnum.OK:
             raise ServiceError(rsp.errorCode)
         market = rsp.market
-        coupon_links = [CouponLink(*lnk) for lnk in market.couponLinks[0] if lnk] if market.couponLinks else []
-        runners = [Runner(*runner) for runner in market.runners[0] if runner] if market.runners else []
-        rsp = MarketInfo(*market)
-        rsp.couponLinks = coupon_links
-        rsp.runners = runners
-        return rsp
+        coupons = (coupon for coupon in market.couponLinks[0] if coupon) if market.couponLinks else []
+        runners = (runner for runner in market.runners[0] if runner) if market.runners else []
+        event_hierarchy = (evt for evt in market.eventHierarchy[0] if evt) if market.eventHierarchy else []
+        info = MarketInfo(**{k: v for k, v in market})
+        info.eventHierarchy = list(event_hierarchy)
+        info.couponLinks = [CouponLink(**{k: v for k, v in coupon}) for coupon in coupons]
+        info.runners = [Runner(**{k: v for k, v in runner}) for runner in runners]
+        info.numberOfRunners = len(info.runners)
+        return info
+     
+    def get_market_info_lite(self, market_id):
+        req = BFExchangeFactory.create("ns1:GetMarketInfoReq")
+        req.marketId = market_id
+        rsp = self._soapcall(BFExchangeService.getMarketInfo, req)
+        if rsp.errorCode == GetMarketErrorEnum.API_ERROR:
+            raise ServiceError(rsp.header.errorCode)
+        if rsp.errorCode != GetMarketErrorEnum.OK:
+            raise ServiceError(rsp.errorCode)
+        info = MarketInfoLite(**{k: v for k, v in rsp.marketLite})
+        return info
 
     @not_implemented
     def cancel_bets(self):
@@ -506,19 +514,6 @@ class Session(object):
     @not_implemented
     def withdraw_to_payment_card(self):
         pass
-
-    def _get_market_info_lite(self, market_id):
-        req = BFExchangeFactory.create("ns1:GetMarketInfoReq")
-        req.marketId = market_id
-        rsp = self._soapcall(BFExchangeService.getMarketInfo, req)
-        if rsp.errorCode == GetMarketErrorEnum.API_ERROR:
-            raise ServiceError(rsp.header.errorCode)
-        if rsp.errorCode != GetMarketErrorEnum.OK:
-            raise ServiceError(rsp.errorCode)
-        attrs = ["delay", "marketStatus", "marketSuspendTime", "marketTime",
-                 "numberOfRunners", "openForBspBetting"]
-        rsp = MarketInfo(*zip(attrs, rsp))
-        return rsp
 
     def _soapcall(self, soapfunc, req):
         if hasattr(req, 'header'):
