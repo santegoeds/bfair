@@ -15,12 +15,6 @@ def test_logout_and_keepalive(session):
 
 
 def test_get_event_types(session):
-    def assert_type(type_):
-        assert isinstance(type_.id, int)
-        assert isinstance(type_.name, basestring)
-        assert isinstance(type_.nextMarketId, int)
-        assert isinstance(type_.exchangeId, int)
-
     # Active event types
     types = session.get_event_types()
     assert len(types) > 0
@@ -49,7 +43,6 @@ def test_get_event_info(session):
 
 
 def test_get_market_info(session):
-
     def event_infos(ids):
         for id in ids:
             info = session.get_event_info(id)
@@ -81,39 +74,6 @@ def test_get_market_info(session):
     
     market_id = market_summary.marketId
 
-    def assert_runner(runner):
-        assert False
-
-    def assert_market_info(mi):
-        assert isinstance(mi.marketStatus, basestring)
-        assert isinstance(mi.marketSuspendTime, datetime)
-        assert isinstance(mi.marketTime, datetime)
-        assert isinstance(mi.bspMarket, bool)
-        assert isinstance(mi.countryISO3, basestring)
-        assert isinstance(mi.couponLinks, list)
-        assert isinstance(mi.discountAllowed, bool)
-        assert isinstance(mi.eventHierarchy, list)
-        assert isinstance(mi.eventTypeId, int)
-        assert isinstance(mi.interval, float)
-        assert isinstance(mi.licenseId, int)
-        assert isinstance(mi.marketBaseRate, float)
-        assert isinstance(mi.marketDescription, basestring)
-        assert isinstance(mi.marketDescriptionHasDate, bool)
-        assert isinstance(mi.marketDisplayTime, datetime)
-        assert isinstance(mi.marketId, int)
-        assert isinstance(mi.marketType, basestring)
-        assert isinstance(mi.marketTypeVariant, basestring)
-        assert isinstance(mi.maxUnitValue, int)
-        assert isinstance(mi.menuPath, basestring)
-        assert isinstance(mi.minUnitValue, int)
-        assert isinstance(mi.name, basestring)
-        assert isinstance(mi.numberOfWinners, int)
-        assert isinstance(mi.parentEventId, int)
-        assert isinstance(mi.runners, list)
-        assert isinstance(mi.runnersMayBeAdded, bool)
-        assert isinstance(mi.timezone, basestring)
-        assert isinstance(mi.unit, int)
-
     lite = session.get_market_info_lite(market_id)
     assert isinstance(lite.marketStatus, basestring)
     assert isinstance(lite.marketSuspendTime, datetime)
@@ -123,11 +83,12 @@ def test_get_market_info(session):
     assert isinstance(lite.reconciled, bool)
     assert isinstance(lite.openForBspBetting, bool)
 
-    assert_market_info(session.get_market_info(market_id))
-    assert_market_info(session.get_market_info(market_id, coupon_links=True))
+    info = session.get_market_info(market_id)
+    assert_market_info(info)
+    assert len(info.couponLinks) == 0
 
-    with pytest.raises(ServiceError):
-        session.get_market_info(market_id, coupon_links=True)
+    info = session.get_market_info(market_id, coupon_links=True)
+    assert_market_info(info)
 
 
 def test_get_markets(session):
@@ -328,4 +289,55 @@ def test_withdraw_to_payment_card(session):
 @pytest.mark.xfail
 def test_cancel_bets_by_market(session):
     session.cancel_bets_by_market()
+
+
+def assert_type(type_):
+    assert isinstance(type_.id, int)
+    assert isinstance(type_.name, basestring)
+    assert isinstance(type_.nextMarketId, int)
+    assert isinstance(type_.exchangeId, int)
+
+
+def assert_market_info(mi):
+    assert isinstance(mi.marketStatus, basestring)
+    assert isinstance(mi.marketSuspendTime, datetime)
+    assert isinstance(mi.marketTime, datetime)
+    assert isinstance(mi.bspMarket, bool)
+    assert isinstance(mi.countryISO3, basestring)
+    assert isinstance(mi.couponLinks, list)
+    assert isinstance(mi.discountAllowed, bool)
+    assert isinstance(mi.eventHierarchy, list)
+    assert isinstance(mi.eventTypeId, int)
+    assert isinstance(mi.interval, float)
+    assert isinstance(mi.licenceId, int)
+    assert isinstance(mi.marketBaseRate, float)
+    assert isinstance(mi.marketDescription, basestring)
+    assert isinstance(mi.marketDescriptionHasDate, bool)
+    assert isinstance(mi.marketDisplayTime, datetime)
+    assert isinstance(mi.marketId, int)
+    assert isinstance(mi.marketType, basestring)
+    assert isinstance(mi.marketTypeVariant, basestring)
+    assert isinstance(mi.maxUnitValue, float)
+    assert isinstance(mi.menuPath, basestring)
+    assert isinstance(mi.minUnitValue, float)
+    assert isinstance(mi.name, basestring)
+    assert isinstance(mi.numberOfWinners, int)
+    assert isinstance(mi.parentEventId, int)
+    assert isinstance(mi.runners, list)
+    assert isinstance(mi.runnersMayBeAdded, bool)
+    assert isinstance(mi.timezone, basestring)
+    assert mi.unit is None or isinstance(mi.unit, int)
+
+    for evt in mi.eventHierarchy:
+        assert isinstance(evt, int)
+
+    for runner in mi.runners:
+        assert isinstance(runner.asianLineId, int)
+        assert isinstance(runner.handicap, float)
+        assert isinstance(runner.name, basestring)
+        assert isinstance(runner.selectionId, int)
+
+    for cl in mi.couponLinks:
+        assert isinstance(cl.couponId, int)
+        assert isinstance(cl.couponName, basestring)
 
