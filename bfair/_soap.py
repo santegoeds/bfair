@@ -18,21 +18,20 @@ from os import path
 from suds.client import Client
 
 
-__all__ = [
-    "BFGlobalService", "BFGlobalFactory", "BFExchangeService", "BFExchangeFactory",
-    "APIErrorEnum", "GetEventsErrorEnum", "ConvertCurrencyErrorEnum", "GetBetErrorEnum",
-    "GetAllMarketsErrorEnum", "GetCompleteMarketPricesErrorEnum", "GetInPlayMarketsErrorEnum",
+__all__ = (
+    "BFGlobalService", "BFGlobalFactory", "BFExchangeService",
+    "BFExchangeFactory", "APIErrorEnum", "LoginErrorEnum", "GetEventsErrorEnum",
+    "ConvertCurrencyErrorEnum", "GetBetErrorEnum", "GetAllMarketsErrorEnum",
+    "GetCompleteMarketPricesErrorEnum", "GetInPlayMarketsErrorEnum",
     "GetMarketPricesErrorEnum", "GetMarketErrorEnum",
-]
+)
 
 
-BFGlobalServiceUrl = "file://" + path.abspath(path.join(path.dirname(__file__), "wsdl/BFGlobalService.wsdl"))
 BFGlobalServiceUrl = "https://api.betfair.com/global/v3/BFGlobalService.wsdl"
 BFGlobalServiceClient = Client(BFGlobalServiceUrl)
 BFGlobalService = BFGlobalServiceClient.service
 BFGlobalFactory = BFGlobalServiceClient.factory
 
-BFExchangeServiceUrl = "file://" + path.abspath(path.join(path.dirname(__file__), "wsdl/BFExchangeService.wsdl"))
 BFExchangeServiceUrl = "https://api.betfair.com/exchange/v5/BFExchangeService.wsdl"
 BFExchangeServiceClient = Client(BFExchangeServiceUrl)
 BFExchangeService = BFExchangeServiceClient.service
@@ -40,6 +39,7 @@ BFExchangeFactory = BFExchangeServiceClient.factory
 
 # Error enumerations
 APIErrorEnum = BFGlobalFactory.create("ns1:APIErrorEnum")
+LoginErrorEnum = BFGlobalFactory.create("ns1:LoginErrorEnum")
 GetEventsErrorEnum = BFGlobalFactory.create("ns1:GetEventsErrorEnum")
 ConvertCurrencyErrorEnum = BFGlobalFactory.create("ns1:ConvertCurrencyErrorEnum")
 GetBetErrorEnum = BFExchangeFactory.create("ns1:GetBetErrorEnum")
@@ -48,4 +48,3 @@ GetCompleteMarketPricesErrorEnum = BFExchangeFactory.create("ns1:GetCompleteMark
 GetInPlayMarketsErrorEnum = BFExchangeFactory.create("ns1:GetInPlayMarketsErrorEnum")
 GetMarketPricesErrorEnum = BFExchangeFactory.create("ns1:GetMarketPricesErrorEnum")
 GetMarketErrorEnum = BFExchangeFactory.create("ns1:GetMarketErrorEnum")
-

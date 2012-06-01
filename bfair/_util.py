@@ -19,8 +19,7 @@ import functools
 
 from collections import namedtuple
 from itertools import izip
-from datetime import datetime, time
-from pprint import pprint
+from datetime import datetime
 
 from ._types import *
 
@@ -30,6 +29,15 @@ def not_implemented(fn):
     def wrapper(*args, **kwargs):
         raise NotImplementedError(fn.__name__)
     return wrapper
+
+
+def untested(logger):
+    def decorator(fn):
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            logger.warning("%s: has not been tested.  Use at your own risk", fn.__name__)
+            return fn(*args, **kwargs)
+    return decorator
 
 
 def as_datetime(s):

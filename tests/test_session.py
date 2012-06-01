@@ -1,39 +1,74 @@
-import pytest
+#!/usr/bin/env python
+#
+#  Copyright 2011 Tjerk Santegoeds
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#  http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
 
+import pytest
 from datetime import datetime
 from itertools import izip
 from bfair.session import ServiceError
 
+from bfair._types import *
+
 
 def test_logout_and_keepalive(session):
+    # Session should be established; test log-out
     session.logout()
+
+    assert session.is_active == False
+
+    # Test that logging out of a disconnected session does
+    # not throw
     session.logout()
+
+    # Test that sending a keep-alive to a disconnected
+    # session does not throw
     session.keep_alive()
+
+    # Test logging in
     session.login()
+
+    assert session.is_active
+
+    # Test that logging in twice is a no-op.
     session.login()
+
+    assert session.is_active
+
     session.keep_alive()
 
 
 def test_get_event_types(session):
     # Active event types
-    types = session.get_event_types()
-    assert len(types) > 0
-    for type in types:
-        assert_type(type)
+    event_types = session.get_event_types()
+    assert len(event_types) > 0
+    for event_type in event_types:
+        assert_event_type(event_type)
 
     # All event types
-    all_types = session.get_event_types(active=False)
-    assert len(all_types) > 0
-    assert len(types) <= len(all_types)
-    for type in all_types:
-        assert_type(type)
+    all_event_types = session.get_event_types(active=False)
+    assert len(all_event_types) > 0
+    assert len(event_types) <= len(all_event_types)
+    for event_type in all_types:
+        assert_event_type(event_type)
 
 
 def test_get_event_info(session):
     # Get Active event types
-    types = session.get_event_types()
+    event_types = session.get_event_types()
 
-    event_info = session.get_event_info(types[0].id)
+    event_info = session.get_event_info(event_types[0].id)
 
     assert isinstance(event_info.eventParentId, int)
     assert isinstance(event_info.eventItems, list)
@@ -42,21 +77,22 @@ def test_get_event_info(session):
     assert event_info.eventItems or event_info.marketItems
 
 
-def test_get_market_info(session):
+def test_get_market_information(session):
     def event_infos(ids):
         for id in ids:
             info = session.get_event_info(id)
             yield info
             for info in event_infos(e.eventId for e in info.eventItems):
                 yield info
-                
+
     # Navigate to an available market
-    type_ids = (type.id for type in session.get_event_types())
+    type_ids = (event_type.id for event_type in session.get_event_types())
     infos = event_infos(type_ids)
     summaries = (m for info in infos for m in info.marketItems)
 
     market_summary = summaries.next()
 
+    assert isinstance(market_summary, MarketSummary)
     assert isinstance(market_summary.eventTypeId, int)
     assert isinstance(market_summary.marketId, int)
     assert isinstance(market_summary.marketName, basestring)
@@ -71,10 +107,11 @@ def test_get_market_info(session):
     assert isinstance(market_summary.numberOfWinners, int)
     assert isinstance(market_summary.eventParentId, int)
     assert isinstance(market_summary.exchangeId, int)
-    
+
     market_id = market_summary.marketId
 
     lite = session.get_market_info_lite(market_id)
+    assert isinstance(lite, MarketInfoLite)
     assert isinstance(lite.marketStatus, basestring)
     assert isinstance(lite.marketSuspendTime, datetime)
     assert isinstance(lite.marketTime, datetime)
@@ -90,6 +127,11 @@ def test_get_market_info(session):
     info = session.get_market_info(market_id, coupon_links=True)
     assert_market_info(info)
 
+    selection_id = info.runners[0].selectionId
+
+    volume = session.get_market_traded_volume(market_id, selection_id)
+    assert_market_traded_volume(volume)
+
 
 def test_get_markets(session):
     all_markets = session.get_markets()
@@ -101,7 +143,7 @@ def test_get_markets(session):
 
     # Remove empty country code (international markets) because
     # the API does not accept it as input.
-    countries &= (countries ^ set([""]))
+    countries ^= set([""])
 
     markets = session.get_markets(countries=countries)
     if has_international:
@@ -159,9 +201,6 @@ def test_get_matched_and_unmatched_bets(session):
 def test_get_market_profit_loss(session):
     session.get_market_profit_loss()
 
-@pytest.mark.xfail
-def test_get_market_traded_volume(session):
-    session.get_market_traded_volume()
 
 
 @pytest.mark.xfail
@@ -291,7 +330,8 @@ def test_cancel_bets_by_market(session):
     session.cancel_bets_by_market()
 
 
-def assert_type(type_):
+def assert_event_type(type_):
+    assert isinstance(type_, EventType)
     assert isinstance(type_.id, int)
     assert isinstance(type_.name, basestring)
     assert isinstance(type_.nextMarketId, int)
@@ -299,6 +339,7 @@ def assert_type(type_):
 
 
 def assert_market_info(mi):
+    assert isinstance(mi, MarketInfo)
     assert isinstance(mi.marketStatus, basestring)
     assert isinstance(mi.marketSuspendTime, datetime)
     assert isinstance(mi.marketTime, datetime)
@@ -321,7 +362,6 @@ def assert_market_info(mi):
     assert isinstance(mi.menuPath, basestring)
     assert isinstance(mi.minUnitValue, float)
     assert isinstance(mi.name, basestring)
-    assert isinstance(mi.numberOfWinners, int)
     assert isinstance(mi.parentEventId, int)
     assert isinstance(mi.runners, list)
     assert isinstance(mi.runnersMayBeAdded, bool)
@@ -332,12 +372,27 @@ def assert_market_info(mi):
         assert isinstance(evt, int)
 
     for runner in mi.runners:
+        assert isinstance(runner, Runner)
         assert isinstance(runner.asianLineId, int)
         assert isinstance(runner.handicap, float)
         assert isinstance(runner.name, basestring)
         assert isinstance(runner.selectionId, int)
 
     for cl in mi.couponLinks:
+        assert isinstance(cl, CouponLink)
         assert isinstance(cl.couponId, int)
         assert isinstance(cl.couponName, basestring)
 
+
+def assert_market_traded_volume(volume):
+    assert isinstance(volume, MarketTradedVolume)
+    assert isinstance(volume.priceItems, list)
+    assert isinstance(volume.actualBSP, float)
+
+    for priceitem in volume.priceItems:
+        assert isinstance(priceitem, VolumeInfo)
+        assert isinstance(priceitem.odds, float)
+        assert isinstance(priceitem.totalMatchedAmount, float)
+        assert isinstance(priceitem.totalBspBackMatchedAmount, float)
+        assert isinstance(priceitem.totalBspMatchedAmount, float)
+        assert isinstance(priceitem.reconciled, bool)

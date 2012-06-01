@@ -53,7 +53,7 @@ def _mk_class(name, attrs):
 
     return class_
 
-    
+
 Market = _mk_class(
     "Market", (
         "marketId",
@@ -79,7 +79,7 @@ Market = _mk_class(
 EventInfo = _mk_class(
     "EventInfo", (
         "eventItems",       # List of BFEvent
-        "eventParentId",    
+        "eventParentId",
         "marketItems",      # List of MarketSummary
         "couponLinks",      # List of CouponLink
     )
@@ -244,6 +244,48 @@ BetInfo = _mk_class(
     )
 )
 
+PlaceBet = _mk_class(
+    "PlaceBet", (
+        "asianLineId",
+        "betCategoryType",
+        "betPersistenceType",
+        "betType",
+        "bspLiability",
+        "marketId",
+        "price",
+        "selectionId",
+        "size",
+    )
+)
+
+PlaceBetResult = _mk_class(
+    "PlaceBetResult", (
+        "averagePriceMatched",
+        "betId",
+        "resultCode",
+        "sizeMatched",
+        "success",
+    )
+)
+
+UpdateBet = _mk_class(
+    "UpdateBet", (
+        "betId",
+        "newBetPersistenceType",
+        "newPrice",
+        "newSize",
+        "oldBetPersistenceType",
+        "oldPrice",
+        "oldSize",
+    )
+)
+
+CancelBet = _mk_class(
+    "CancelBet", (
+        "betId",
+    )
+)
+
 Match = _mk_class(
     "Match", (
         "betStatus",
@@ -303,6 +345,22 @@ MarketInfoLite = _mk_class(
     )
 )
 
+VolumeInfo = _mk_class(
+    "VolumeInfo", (
+        "odds",
+        "totalMatchedAmount",
+        "totalBspBackMatchedAmount",
+        "totalBspMatchedAmount",
+    )
+)
+
+MarketTradedVolume = _mk_class(
+    "MarketTradedVolume", (
+        "priceItems",
+        "actualBSP",
+    )
+)
+MarketTradedVolume.reconciled = property(lambda self: self.actualBSP != 0.)
+
 
 del _mk_class
-
